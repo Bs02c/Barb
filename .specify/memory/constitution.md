@@ -3,8 +3,10 @@
 ## Principios fundamentales
 
 ### I. Aislamiento por barbería en la base de datos (NO NEGOCIABLE)
-- Toda tabla con datos de una barbería DEBE tener `barbershop_id` y RLS activado, con políticas
-  para cada operación (SELECT, INSERT, UPDATE, DELETE), creadas en la misma migración que la tabla.
+- Toda tabla con datos de una barbería DEBE tener `barbershop_id` y RLS activado, en la misma
+  migración que la tabla. Cada operación (SELECT, INSERT, UPDATE, DELETE) DEBE estar decidida
+  explícitamente para cada rol: con una política, o denegada por ausencia de política. En ambos
+  casos se documenta en el contrato de acceso y en un comentario de la migración, y se prueba.
 - La barbería de una petición DEBE resolverse en el servidor a partir del subdominio. Nunca se
   acepta un `barbershop_id` enviado por el cliente.
 - Todo código que use la service role key (que se salta RLS) DEBE filtrar explícitamente por el
@@ -100,6 +102,8 @@ Razón: la app pasa de Vercel al VPS con el primer cliente y no debe reescribirs
 - Usar la service role key en código de cliente.
 - Editar una migración ya aplicada; se crea una nueva.
 - Cambiar el esquema a mano desde la consola de Supabase.
+- Cargar datos de demostración o ejecutar tests contra producción. Los tests corren solo en la
+  base local y deshacen sus cambios; a producción solo llegan migraciones (ADR-014).
 
 ## Flujo de desarrollo y calidad
 
@@ -114,7 +118,8 @@ Razón: la app pasa de Vercel al VPS con el primer cliente y no debe reescribirs
   seguridad bloquea el cambio.
 - Comandos, framework de tests (Vitest y pgTAP; Playwright desde la fase 4), estructura de
   carpetas, estilo de código y flujo de git están en `CLAUDE.md`. Ninguna tarea se da por
-  terminada sin pasar `lint`, `typecheck`, `test` y, si toca la base de datos, `test:db`.
+  terminada sin pasar `lint`, `typecheck`, `test` y, si toca la base de datos, `test:db` y
+  `test:integration`.
 
 ## Gobernanza
 
@@ -127,4 +132,4 @@ Razón: la app pasa de Vercel al VPS con el primer cliente y no debe reescribirs
   arquitectura, se registra como ADR.
 - Los agentes de revisión verifican el cumplimiento de esta constitución en los hitos que revisan.
 
-**Versión**: 1.0.3 | **Ratificada**: 2026-10-04 | **Última enmienda**: 2026-10-04
+**Versión**: 1.1.1 | **Ratificada**: 2026-10-04 | **Última enmienda**: 2026-10-04

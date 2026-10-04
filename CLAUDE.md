@@ -56,9 +56,16 @@ Plataforma multi-tenant donde cada barbería tiene su propio espacio, identifica
 | `npm run typecheck` | Genera los tipos de rutas de Next.js y ejecuta `tsc` |
 | `npm test` | Tests unitarios (Vitest, `src/**/*.test.ts`) |
 | `npm run test:db` | Tests de base de datos (pgTAP, `supabase/tests/*.sql`) |
+| `npm run test:integration` | Tests contra Supabase local en marcha (Vitest, `tests/integration/`); se niegan a correr contra un entorno remoto |
+| `npm run db:types` | Regenera `src/lib/database.types.ts` desde la base local; ejecutar tras cada migración |
 | `npm run build` | Compilación de producción |
 
-Antes de dar una tarea por terminada: `lint`, `typecheck`, `test` y, si se tocó la base de datos, `test:db`.
+Antes de dar una tarea por terminada: `lint`, `typecheck`, `test` y, si se tocó la base de datos, `db:types`, `test:db` y `test:integration`.
+
+## Entornos de base de datos (ADR-014)
+- **Local** (Docker): desarrollo y todos los tests; datos de demostración en `supabase/seed.sql`.
+- **Pruebas** (Supabase nube, fase 7): demostración en Vercel; solo datos de demostración.
+- **Producción** (Supabase nube, con el primer cliente): solo migraciones. Nunca seed, nunca tests, nunca `--linked` con `test db` o `db reset`.
 
 ## Estructura
 - `src/app/`: rutas, páginas y layouts (App Router).
