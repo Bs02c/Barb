@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useSelectedLayoutSegment } from "next/navigation";
 import { useFormStatus } from "react-dom";
-import { CalendarOff, Clock, House, LogOut, Scissors, Users, type LucideIcon } from "lucide-react";
+import { CalendarDays, CalendarOff, Clock, LogOut, Scissors, Users, type LucideIcon } from "lucide-react";
 import { signOut } from "@/lib/admin/actions";
 import { cn } from "@/lib/utils";
 
 // Rutas visibles para el usuario (labarberia.dominio/admin/...); el proxy las reescribe.
 const ITEMS: { segment: string | null; href: string; label: string; icon: LucideIcon }[] = [
-  { segment: null, href: "/admin", label: "Inicio", icon: House },
+  { segment: null, href: "/admin", label: "Agenda", icon: CalendarDays },
   { segment: "barberos", href: "/admin/barberos", label: "Barberos", icon: Users },
   { segment: "servicios", href: "/admin/servicios", label: "Servicios", icon: Scissors },
   { segment: "horarios", href: "/admin/horarios", label: "Horarios", icon: Clock },
