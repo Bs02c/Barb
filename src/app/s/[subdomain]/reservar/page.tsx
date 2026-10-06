@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BookingForm } from "@/components/booking/booking-form";
 import {
@@ -30,7 +31,8 @@ export async function generateMetadata(props: PageProps<"/s/[subdomain]/reservar
 
 const LOCAL_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-type Params = { servicio?: string; barbero?: string; dia?: string; hora?: string };
+// `elegir=1`: con "Lo más pronto", mostrar el calendario en lugar de saltar a la primera hora libre.
+type Params = { servicio?: string; barbero?: string; dia?: string; hora?: string; elegir?: string };
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -64,6 +66,7 @@ export default async function BookingPage(props: PageProps<"/s/[subdomain]/reser
           barbero: first(query.barbero),
           dia: first(query.dia),
           hora: first(query.hora),
+          elegir: first(query.elegir),
         }}
       />
     </main>
@@ -142,6 +145,51 @@ async function BookingStep({
   const availability = await getAvailability(barbershop, service.id, barberParam);
   if (!availability) return <StepFallback href={barberStepHref} />;
   const { days, slotsByDay } = availability;
+  const base = { servicio: service.id, barbero: barberParam };
+
+  // "Lo más pronto" se salta el calendario: paso de datos con la primera hora libre (FR-004).
+  // Sin horas libres, o si el cliente pidió elegir, sigue al calendario.
+  const firstSlot = days[0] && slotsByDay.get(days[0].localDate)?.[0];
+  if (isEarliest && !params.dia && !params.hora && params.elegir !== "1" && firstSlot) {
+    const calendarHref = bookingHref({ ...base, elegir: "1" });
+    return (
+      <BookingForm
+        subdomain={subdomain}
+        serviceId={service.id}
+        barberId={barberParam}
+        startsAt={firstSlot.startsAt}
+        slotsHref={calendarHref}
+        header={
+          <>
+            <StepHeader step={3} total={3} title="Tus datos" backHref={barberStepHref} />
+            <div className="flex flex-col gap-1">
+              <p>
+                La más pronta:{" "}
+                <strong>
+                  {days[0].label}, {firstSlot.label}
+                </strong>{" "}
+                con <strong>{firstSlot.barberName}</strong>
+              </p>
+              <Link
+                href={calendarHref}
+                className="inline-flex h-11 w-fit items-center rounded-lg font-medium underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                Prefiero elegir otra hora
+              </Link>
+            </div>
+            <BookingSummary
+              items={[
+                summary[0],
+                { label: "Barbero", value: firstSlot.barberName },
+                { label: "Fecha", value: days[0].label },
+                { label: "Hora", value: firstSlot.label },
+              ]}
+            />
+          </>
+        }
+      />
+    );
+  }
 
   // El día solo vale si está entre los días con horas libres; si no, paso 3 sin día elegido.
   const day =
@@ -150,7 +198,6 @@ async function BookingStep({
   const slot = slots.find((s) => s.startsAt === params.hora);
 
   if (!day || !slot) {
-    const base = { servicio: service.id, barbero: barberParam };
     return (
       <>
         <StepHeader step={3} title="Elige fecha y hora" backHref={barberStepHref} />

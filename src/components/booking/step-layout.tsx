@@ -10,8 +10,21 @@ export const TOTAL_STEPS = 4;
 
 const focusRing = "outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
-/** "Paso 2 de 4" en texto + barra de progreso en cobre; enlace "Atrás" si hay paso anterior. */
-export function StepHeader({ step, title, backHref }: { step: number; title: string; backHref?: string }) {
+/**
+ * "Paso 2 de 4" en texto + barra de progreso en cobre; enlace "Atrás" si hay paso anterior.
+ * `total` baja a 3 cuando "Lo más pronto" se salta el calendario.
+ */
+export function StepHeader({
+  step,
+  title,
+  backHref,
+  total = TOTAL_STEPS,
+}: {
+  step: number;
+  title: string;
+  backHref?: string;
+  total?: number;
+}) {
   return (
     <div className="flex flex-col gap-3">
       {backHref && (
@@ -28,10 +41,10 @@ export function StepHeader({ step, title, backHref }: { step: number; title: str
       )}
       <div className="flex flex-col gap-2">
         <p className="text-sm font-medium text-muted-foreground">
-          Paso {step} de {TOTAL_STEPS}
+          Paso {step} de {total}
         </p>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
-          <div className="h-full rounded-full bg-selection" style={{ width: `${(step / TOTAL_STEPS) * 100}%` }} />
+          <div className="h-full rounded-full bg-selection" style={{ width: `${(step / total) * 100}%` }} />
         </div>
       </div>
       <h2 className="text-xl font-semibold">{title}</h2>

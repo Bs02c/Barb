@@ -30,7 +30,7 @@ Un cliente entra en la página de la barbería desde el celular, pulsa "Reservar
 
 ### Historia 2 - "Lo más pronto" (Prioridad: P1)
 
-En el paso 2 el cliente elige "Lo más pronto" en lugar de un barbero. En el paso 3 ve las horas libres de cualquier barbero. Al elegir una hora, el sistema le asigna automáticamente un barbero libre en ese momento y se lo muestra antes de confirmar.
+En el paso 2 el cliente elige "Lo más pronto" en lugar de un barbero. Pasa directo al paso de datos con la primera hora libre de cualquier barbero ya elegida y ve "La más pronta: [día, hora] con [barbero]". Un enlace "Prefiero elegir otra hora" lleva al calendario con las horas de cualquier barbero (cambio pedido por el usuario el 2026-10-06).
 
 **Por qué esta prioridad**: pedido por el usuario en la revisión del diseño; a muchos clientes les importa la hora, no el barbero.
 
@@ -108,7 +108,7 @@ Antes de confirmar, el cliente marca una casilla de autorización de tratamiento
 - **FR-001**: La página pública de la barbería DEBE mostrar un botón "Reservar cita" que inicia el flujo.
 - **FR-002**: El flujo DEBE tener 4 pasos (servicio → barbero → fecha y hora → datos) y una confirmación, conservando lo elegido al ir y volver.
 - **FR-003**: Solo se ofrecen servicios y barberos activos de esa barbería.
-- **FR-004**: El paso 2 DEBE ofrecer "Lo más pronto" como primera opción; al elegir hora, el sistema asigna un barbero libre y lo muestra antes de confirmar.
+- **FR-004**: El paso 2 DEBE ofrecer "Lo más pronto" como primera opción. Al elegirlo se salta el calendario: el paso de datos muestra la primera hora libre de cualquier barbero con el barbero asignado, y un enlace "Prefiero elegir otra hora" abre el calendario. Al confirmar, el servidor revalida y puede asignar otro barbero libre (cambio del usuario, 2026-10-06).
 - **FR-005**: Las horas ofrecidas DEBEN cumplir a la vez: dentro de un tramo del horario semanal del barbero (con la duración completa del servicio), fuera de bloqueos, sin solaparse con citas activas, posteriores a la antelación mínima y dentro del periodo reservable.
 - **FR-006**: Las horas de inicio se prueban cada 15 minutos (9:00, 9:15, 9:30…) y solo se ofrecen las que dejan caber la duración completa del servicio (aclarado por el usuario, 2026-10-06).
 - **FR-007**: El periodo reservable DEBE ser de hasta 30 días hacia adelante, con una antelación mínima de 1 hora (aclarado por el usuario, 2026-10-06).

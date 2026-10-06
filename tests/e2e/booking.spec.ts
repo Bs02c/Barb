@@ -57,17 +57,17 @@ test("un cliente reserva una cita con «Lo más pronto» desde el celular", asyn
   await expectNoAxeViolations(page);
   await page.getByRole("link", { name: /Lo más pronto/ }).click();
 
-  // Paso 3: el primer día y la primera hora que ofrece la interfaz.
-  await expect(page.getByText("Paso 3 de 4")).toBeVisible();
+  // «Lo más pronto» salta el calendario: paso de datos con la primera hora libre (FR-004).
+  // «Prefiero elegir otra hora» abre el calendario y «Atrás» vuelve al paso de datos.
+  await expect(page.getByText("Paso 3 de 3")).toBeVisible();
+  await expect(page.getByText(/La más pronta:/)).toBeVisible();
+  await page.getByRole("link", { name: "Prefiero elegir otra hora" }).click();
+  await expect(page.getByRole("navigation", { name: "Días disponibles" })).toBeVisible();
   await expectNoAxeViolations(page);
-  await page.getByRole("navigation", { name: "Días disponibles" }).getByRole("link").first().click();
-  const hours = page.getByRole("region", { name: /Horas disponibles/ });
-  await expect(hours).toBeVisible();
-  await expectNoAxeViolations(page);
-  await hours.getByRole("link").first().click();
+  await page.goBack();
 
-  // Paso 4: datos. Con «Lo más pronto», el resumen ya muestra el barbero asignado.
-  await expect(page.getByText("Paso 4 de 4")).toBeVisible();
+  // Paso de datos. El resumen ya muestra el barbero asignado.
+  await expect(page.getByText("Paso 3 de 3")).toBeVisible();
   const assignedBarber = await page
     .getByRole("region", { name: "Tu selección" })
     .locator("dt", { hasText: "Barbero" })
