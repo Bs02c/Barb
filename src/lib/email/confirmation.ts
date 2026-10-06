@@ -1,5 +1,6 @@
 import "server-only";
 import type { BookingSummary } from "@/lib/booking/booking-state";
+import { logSafeError } from "@/lib/log";
 import { escapeHtml } from "./escape";
 import { sendEmail, type Email } from "./send";
 
@@ -61,7 +62,6 @@ export async function sendConfirmation(data: ConfirmationData): Promise<void> {
     await sendEmail({ to: data.to, ...confirmationEmail(data) });
   } catch (error) {
     // Solo código y mensaje: ni destinatario ni enlace (constitución VI).
-    const { code, message } = (error ?? {}) as { code?: string; message?: string };
-    console.error("Error al enviar la confirmación", { code, message });
+    logSafeError("Error al enviar la confirmación", error);
   }
 }

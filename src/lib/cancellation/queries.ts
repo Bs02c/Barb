@@ -10,7 +10,7 @@ import { hashToken } from "./token";
 // enlace nunca cancela. Filtra siempre por la barbería y por el hash del token (constitución I).
 
 /** Cita de la barbería con ese token, o null. Nombres de servicio y barbero aunque estén inactivos. */
-async function findByToken(barbershop: PublicBarbershop, token: string) {
+export async function findByToken(barbershop: PublicBarbershop, token: string) {
   const { data, error } = await createServiceClient()
     .from("appointments")
     .select("starts_at, status, service_duration_minutes, service_price, services(name), barbers(name)")
@@ -21,9 +21,9 @@ async function findByToken(barbershop: PublicBarbershop, token: string) {
   return data;
 }
 
-export type FoundAppointment = NonNullable<Awaited<ReturnType<typeof findByToken>>>;
+type FoundAppointment = NonNullable<Awaited<ReturnType<typeof findByToken>>>;
 
-export function toDetails(appointment: FoundAppointment, barbershop: PublicBarbershop): CancellationDetails {
+function toDetails(appointment: FoundAppointment, barbershop: PublicBarbershop): CancellationDetails {
   return {
     serviceName: appointment.services?.name ?? "",
     barberName: appointment.barbers?.name ?? "",
@@ -49,4 +49,3 @@ export async function getCancellation(
   return { status: "active", details };
 }
 
-export { findByToken };

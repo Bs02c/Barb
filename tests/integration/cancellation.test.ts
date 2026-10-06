@@ -98,6 +98,30 @@ describe("getCancellation (abrir el enlace)", () => {
   });
 });
 
+describe("barbero o servicio desactivado después de reservar", () => {
+  it("el enlace sigue funcionando y muestra los nombres", async () => {
+    const extraBarber = (await insert<{ id: string }>("barbers", { barbershop_id: shop.id, name: "Temporal" })).id;
+    const extraService = (await insert<{ id: string }>("services", { barbershop_id: shop.id, name: "Barba", duration_minutes: 30, price: 15000 })).id;
+    await insert("barber_schedules", { barbershop_id: shop.id, barber_id: extraBarber, weekday: 3, start_time: "09:00", end_time: "13:00" });
+    const { result, confirmation } = await bookAppointment(
+      shop,
+      input(at("2030-01-16T09:00"), { barber_id: extraBarber, service_id: extraService }),
+      NOW,
+    );
+    expect(result).toMatchObject({ ok: true });
+    const token = confirmation!.cancelUrl.split("/cancelar/")[1];
+
+    await db.from("barbers").update({ is_active: false }).eq("id", extraBarber);
+    await db.from("services").update({ is_active: false }).eq("id", extraService);
+
+    expect(await getCancellation(shop, token, NOW)).toMatchObject({
+      status: "active",
+      details: { serviceName: "Barba", barberName: "Temporal" },
+    });
+    expect(await submitCancellation(host(shop), shop.subdomain, token, NOW)).toEqual({ ok: true });
+  });
+});
+
 describe("submitCancellation (pulsar el botón)", () => {
   it("cancela, y la hora vuelve a quedar libre", async () => {
     const token = await book("2030-01-09T09:00");

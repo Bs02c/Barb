@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { CancelForm } from "@/components/cancellation/cancel-form";
 import { BookingSummary, EmptyState } from "@/components/booking/step-layout";
 import { getPublicBarbershop } from "@/lib/barbershops";
 import { getCancellation } from "@/lib/cancellation/queries";
+import { resolveTenant, ROOT_DOMAIN } from "@/lib/tenant";
 import { CANCEL_MESSAGES } from "@/lib/cancellation/messages";
 import type { CancellationDetails } from "@/lib/cancellation/cancellation-state";
 
@@ -35,6 +37,10 @@ function summaryItems(details: CancellationDetails) {
 
 export default async function CancelPage(props: PageProps<"/s/[subdomain]/cancelar/[token]">) {
   const { subdomain, token } = await props.params;
+  // Defensa en profundidad (revisión fase 5, SEC-001): la barbería sale del subdominio, pero el Host
+  // real de la petición debe coincidir con el de la ruta, igual que en la server action.
+  const tenant = resolveTenant((await headers()).get("host"), ROOT_DOMAIN);
+  if (tenant.kind !== "tenant" || tenant.subdomain !== subdomain) notFound();
   const barbershop = await getPublicBarbershop(subdomain);
   if (!barbershop) notFound();
 

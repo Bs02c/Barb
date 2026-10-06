@@ -1,13 +1,10 @@
 // Tipos de la cancelación (contracts/cancellation.md). Archivo aparte porque un módulo
 // "use server" solo puede exportar funciones async.
 
-export type CancellationDetails = {
-  serviceName: string;
-  barberName: string;
-  startsAtLabel: string; // formatDateTime en la zona de la barbería
-  durationMinutes: number;
-  priceLabel: string; // "$ 25.000"
-};
+import type { BookingSummary } from "@/lib/booking/booking-state";
+
+// Mismo resumen que el de la confirmación de la reserva: un solo tipo (revisión fase 5, MAINT-004).
+export type CancellationDetails = BookingSummary;
 
 /** Lo que muestra la página del enlace. Nunca incluye teléfono ni correo del cliente. */
 export type CancellationView =

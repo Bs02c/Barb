@@ -7,7 +7,7 @@ El agente principal publica estas firmas antes de lanzar al `frontend`. Todo mó
 ```ts
 export function generateCancelToken(): string;     // 43 caracteres base64url
 export function hashToken(token: string): string;  // "\\x" + sha256 en hex, formato bytea de PostgREST
-export function cancelUrl(subdomain: string, token: string): string; // research §6
+export function cancelUrl(subdomain: string, token: string, rootDomain?: string): string; // research §6; rootDomain solo para tests
 ```
 
 ## `src/lib/cancellation/schemas.ts` (sin server-only: compartido)
@@ -19,13 +19,7 @@ export const cancelTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 ## `src/lib/cancellation/cancellation-state.ts` (sin server-only)
 
 ```ts
-export type CancellationDetails = {
-  serviceName: string;
-  barberName: string;
-  startsAtLabel: string;   // formatDateTime en la zona de la barbería
-  durationMinutes: number;
-  priceLabel: string;
-};
+export type CancellationDetails = BookingSummary; // mismo resumen que la confirmación de la reserva
 
 export type CancellationView =
   | { status: "active"; details: CancellationDetails }
@@ -80,7 +74,7 @@ export async function cancelAppointment(
 ```ts
 // send.ts (server-only)
 export type Email = { to: string; subject: string; html: string; text: string };
-export function sendEmail(email: Email): Promise<void>; // research §5: outbox | resend
+export function sendEmail(email: Email, outboxDir?: string): Promise<void>; // research §5: outbox | resend; outboxDir solo para tests
 
 // confirmation.ts (server-only)
 export type ConfirmationData = {
@@ -119,7 +113,7 @@ export const CANCEL_MESSAGES = {
 
 ## Página (frontend)
 
-`src/app/s/[subdomain]/cancelar/[token]/page.tsx` (Server Component) + `src/components/cancellation/cancel-form.tsx` ("use client", `useActionState`, `<form method="post">`).
+`src/app/s/[subdomain]/cancelar/[token]/page.tsx` (Server Component) + `src/components/cancellation/cancel-form.tsx` ("use client", `useActionState`, `<form action={action}>`: con una server action React ya envía por POST).
 
 | `CancellationView.status` | Muestra |
 |---|---|

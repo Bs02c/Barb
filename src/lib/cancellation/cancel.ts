@@ -1,5 +1,6 @@
 import "server-only";
 import { getPublicBarbershop } from "@/lib/barbershops";
+import { logSafeError } from "@/lib/log";
 import { createServiceClient } from "@/lib/supabase/service";
 import { resolveTenant, ROOT_DOMAIN } from "@/lib/tenant";
 import type { CancelResult } from "./cancellation-state";
@@ -49,11 +50,12 @@ export async function submitCancellation(
     if (existing.status === "cancelled") {
       return { ok: false, code: "already_cancelled", message: CANCEL_MESSAGES.alreadyCancelled };
     }
+    // Hoy una cita no cancelada con 0 filas actualizadas solo puede haber empezado ya. Si se añade
+    // otro estado de cita, revisar esta rama (revisión fase 5, MAINT-010).
     return { ok: false, code: "past", message: CANCEL_MESSAGES.past };
   } catch (error) {
     // Solo código y mensaje: nunca el token ni datos del cliente (constitución VI).
-    const { code, message } = (error ?? {}) as { code?: string; message?: string };
-    console.error("Error al cancelar la cita", { code, message });
+    logSafeError("Error al cancelar la cita", error);
     return { ok: false, code: "server_error", message: CANCEL_MESSAGES.serverError };
   }
 }

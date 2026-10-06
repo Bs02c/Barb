@@ -10,11 +10,16 @@ export type Email = { to: string; subject: string; html: string; text: string };
 
 const DEFAULT_OUTBOX = path.join(process.cwd(), ".outbox");
 
+// Sin EMAIL_TRANSPORT, solo desarrollo y tests escriben a disco; cualquier otro entorno (producción,
+// staging, NODE_ENV vacío) envía por Resend (revisión fase 5, SEC-003).
 function transport(): "outbox" | "resend" {
   const configured = process.env.EMAIL_TRANSPORT;
   if (configured === "outbox" || configured === "resend") return configured;
-  return process.env.NODE_ENV === "production" ? "resend" : "outbox";
+  return process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test" ? "outbox" : "resend";
 }
+
+const RESEND_TIMEOUT_MS = 8000; // revisión fase 5, PERF-001: un Resend colgado no ocupa la función
+const RETRY_DELAY_MS = 1000;
 
 export async function sendEmail(email: Email, outboxDir: string = DEFAULT_OUTBOX): Promise<void> {
   if (transport() === "outbox") {
@@ -30,11 +35,19 @@ export async function sendEmail(email: Email, outboxDir: string = DEFAULT_OUTBOX
   const from = process.env.EMAIL_FROM;
   if (!apiKey || !from) throw new Error("Falta RESEND_API_KEY o EMAIL_FROM para enviar correo");
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from, to: email.to, subject: email.subject, html: email.html, text: email.text }),
-  });
+  const request = () =>
+    fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to: email.to, subject: email.subject, html: email.html, text: email.text }),
+      signal: AbortSignal.timeout(RESEND_TIMEOUT_MS),
+    });
+  let response = await request();
+  // Un solo reintento ante límite de tasa (429) o fallo del servidor (5xx): sin cola en el MVP (PERF-002).
+  if (response.status === 429 || response.status >= 500) {
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    response = await request();
+  }
   if (!response.ok) {
     // Solo el código HTTP y el nombre del error: el cuerpo puede repetir destinatario o contenido.
     const body = (await response.json().catch(() => ({}))) as { name?: string };

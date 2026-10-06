@@ -1,5 +1,6 @@
 import "server-only";
 import { getPublicBarbershop } from "@/lib/barbershops";
+import { logSafeError } from "@/lib/log";
 import { resolveTenant, ROOT_DOMAIN } from "@/lib/tenant";
 import { toFieldErrors } from "@/lib/validation";
 import { bookAppointment, type BookingOutcome } from "./book";
@@ -41,8 +42,7 @@ export async function submitBooking(
   } catch (error) {
     // Solo código y mensaje: nunca el error completo, cuyo `details` puede llevar nombre, teléfono
     // o correo del cliente ("Failing row contains …") (constitución VI; revisión fase 4, SEC-002).
-    const { code, message } = (error ?? {}) as { code?: string; message?: string };
-    console.error("Error al reservar", { code, message });
+    logSafeError("Error al reservar", error);
     return { result: { ok: false, code: "server_error", message: MESSAGES.serverError } };
   }
 }

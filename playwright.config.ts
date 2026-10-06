@@ -4,6 +4,7 @@ import { defineConfig, devices } from "@playwright/test";
 // (npm run db:start); el subdominio de la barbería de demostración se resuelve con *.localhost.
 export default defineConfig({
   testDir: "./tests/e2e",
+  globalSetup: "./tests/e2e/global-setup.ts", // vacía .outbox/ (correos con enlaces de ejecuciones anteriores)
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,

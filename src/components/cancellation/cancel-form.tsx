@@ -42,6 +42,8 @@ export function CancelForm({
     );
   }
 
+  // Sin method="post": con una server action como `action`, React ya envía por POST (y fijarlo a
+  // mano provoca un aviso de hidratación).
   return (
     <form action={action} className="flex flex-col gap-4">
       <BookingSummary items={items} />

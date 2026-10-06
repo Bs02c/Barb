@@ -39,7 +39,7 @@ El cliente abre el enlace del correo. Ve su cita (servicio, barbero, fecha y hor
 ### Casos límite
 
 - **Admin cancela antes que el cliente**: el enlace muestra "ya está cancelada" (escenario 2.3).
-- **Barbero o servicio desactivado después de reservar**: la cancelación sigue funcionando. La página muestra los datos guardados en la cita, no el catálogo actual.
+- **Barbero o servicio desactivado después de reservar**: la cancelación sigue funcionando. La página muestra duración y precio copiados en la cita y los nombres de servicio y barbero del catálogo, aunque estén desactivados.
 - **Cita creada sin token** (seed o creada antes de esta fase): no tiene enlace. Nada que hacer.
 - **Correo a un tercero**: alguien reserva con el correo de otra persona, que recibe la confirmación. Riesgo conocido de la revisión de la fase 4; el destinatario puede cancelar con el enlace. Turnstile y rate limiting están en el Roadmap como obligatorios antes del primer cliente.
 
@@ -69,9 +69,9 @@ El cliente abre el enlace del correo. Ve su cita (servicio, barbero, fecha y hor
 
   Dos pulsaciones simultáneas cancelan una sola vez.
 - **FR-009**: Plazo para cancelar: **hasta la hora de inicio de la cita**. *Decisión por defecto, a confirmar por el usuario.*
-- **FR-010**: La página de cancelación DEBE tener `noindex` y `Referrer-Policy: no-referrer`, para que el token no salga hacia otros sitios. Tampoco muestra teléfono ni correo del cliente.
+- **FR-010**: La página de cancelación DEBE tener `noindex` y las cabeceras `Referrer-Policy: no-referrer` y `Cache-Control: no-store` (en `next.config.ts`), para que el token no salga hacia otros sitios. Tampoco muestra teléfono ni correo del cliente.
 - **FR-011**: Los logs NO DEBEN contener el token, el correo, el nombre ni el teléfono del cliente (constitución VI).
-- **FR-012**: En desarrollo y en los tests, el correo NO se envía por internet: se escribe en una carpeta local ignorada por git (`.outbox/`). En producción, sin configuración de envío, la app DEBE fallar al enviar (error en el log), nunca escribir a disco.
+- **FR-012**: En desarrollo y en los tests (`NODE_ENV` development o test), el correo NO se envía por internet: se escribe en una carpeta local ignorada por git (`.outbox/`), que Playwright vacía antes de cada ejecución. En producción, sin configuración de envío, la app DEBE fallar al enviar (error en el log), nunca escribir a disco.
 - **FR-013**: Textos en español de Colombia, mobile-first, accesibles (axe sin violaciones), según `DESIGN.md`.
 
 ### Entidades
