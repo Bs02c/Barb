@@ -1,6 +1,8 @@
 import "server-only";
 import type { PostgrestError } from "@supabase/supabase-js";
 import type { PublicBarbershop } from "@/lib/barbershops";
+import { cancelUrl, generateCancelToken, hashToken } from "@/lib/cancellation/token";
+import type { ConfirmationData } from "@/lib/email/confirmation";
 import { createServiceClient } from "@/lib/supabase/service";
 import { formatDateTime, formatPrice, toLocalDate } from "@/lib/time";
 import type { BookingResult } from "./booking-state";
@@ -19,7 +21,13 @@ const SLOT_TAKEN: BookingResult = { ok: false, code: "slot_taken", message: MESS
 const UNAVAILABLE: BookingResult = { ok: false, code: "unavailable", message: MESSAGES.unavailable };
 const LIMIT_REACHED: BookingResult = { ok: false, code: "limit_reached", message: MESSAGES.limitReached };
 
-type Attempt = { result: BookingResult } | { retry: true };
+/**
+ * Resultado para el navegador más, si la cita se creó, los datos del correo de confirmación. El
+ * token de cancelación solo viaja dentro de `confirmation.cancelUrl`, que nunca llega al navegador.
+ */
+export type BookingOutcome = { result: BookingResult; confirmation?: ConfirmationData };
+
+type Attempt = BookingOutcome | { retry: true };
 
 async function attempt(barbershop: PublicBarbershop, input: BookingInput, now: Date): Promise<Attempt> {
   // 1. Servicio y barbero(s) activos DE ESTA barbería (constitución I).
@@ -53,6 +61,8 @@ async function attempt(barbershop: PublicBarbershop, input: BookingInput, now: D
   const { service } = selection;
   const startsAt = new Date(slot.startsAt);
   const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
+  // Token de cancelación nuevo en cada intento; en la base solo su hash (spec 003, FR-003).
+  const token = generateCancelToken();
   const { error } = await db.from("appointments").insert({
     barbershop_id: barbershop.id,
     barber_id: slot.barberId,
@@ -65,21 +75,26 @@ async function attempt(barbershop: PublicBarbershop, input: BookingInput, now: D
     customer_phone: input.customer_phone,
     customer_email: input.customer_email,
     data_consent_at: now.toISOString(),
+    cancel_token_hash: hashToken(token),
   });
 
   if (error) return fromDatabase(error, input);
 
   const barberName = selection.barbers.find((b) => b.id === slot.barberId)?.name ?? "";
+  const summary = {
+    serviceName: service.name,
+    barberName,
+    startsAtLabel: formatDateTime(startsAt, barbershop.timezone),
+    durationMinutes: service.durationMinutes,
+    priceLabel: formatPrice(service.price),
+  };
   return {
-    result: {
-      ok: true,
-      summary: {
-        serviceName: service.name,
-        barberName,
-        startsAtLabel: formatDateTime(startsAt, barbershop.timezone),
-        durationMinutes: service.durationMinutes,
-        priceLabel: formatPrice(service.price),
-      },
+    result: { ok: true, summary },
+    confirmation: {
+      to: input.customer_email,
+      barbershopName: barbershop.name,
+      summary,
+      cancelUrl: cancelUrl(barbershop.subdomain, token),
     },
   };
 }
@@ -104,10 +119,10 @@ export async function bookAppointment(
   barbershop: PublicBarbershop,
   input: BookingInput,
   now: Date = new Date(),
-): Promise<BookingResult> {
+): Promise<BookingOutcome> {
   for (let i = 0; i < 2; i++) {
     const outcome = await attempt(barbershop, input, now);
-    if ("result" in outcome) return outcome.result;
+    if (!("retry" in outcome)) return outcome;
   }
-  return SLOT_TAKEN;
+  return { result: SLOT_TAKEN };
 }

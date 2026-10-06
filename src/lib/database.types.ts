@@ -25,13 +25,13 @@ export type Database = {
           Tables: {
             "appointments": {
                   Row: {
-                    "barber_id": string,"barbershop_id": string,"cancelled_at": string | null,"created_at": string,"customer_email": string,"customer_name": string,"customer_phone": string,"data_consent_at": string,"ends_at": string,"id": string,"service_duration_minutes": number,"service_id": string,"service_price": number,"starts_at": string,"status": Database["public"]['Enums']["appointment_status"]
+                    "barber_id": string,"barbershop_id": string,"cancel_token_hash": string | null,"cancelled_at": string | null,"created_at": string,"customer_email": string,"customer_name": string,"customer_phone": string,"data_consent_at": string,"ends_at": string,"id": string,"service_duration_minutes": number,"service_id": string,"service_price": number,"starts_at": string,"status": Database["public"]['Enums']["appointment_status"]
                   }
                   Insert: {
-                    "barber_id": string,"barbershop_id": string,"cancelled_at"?: string | null,"created_at"?: string,"customer_email": string,"customer_name": string,"customer_phone": string,"data_consent_at": string,"ends_at": string,"id"?: string,"service_duration_minutes": number,"service_id": string,"service_price": number,"starts_at": string,"status"?: Database["public"]['Enums']["appointment_status"]
+                    "barber_id": string,"barbershop_id": string,"cancel_token_hash"?: string | null,"cancelled_at"?: string | null,"created_at"?: string,"customer_email": string,"customer_name": string,"customer_phone": string,"data_consent_at": string,"ends_at": string,"id"?: string,"service_duration_minutes": number,"service_id": string,"service_price": number,"starts_at": string,"status"?: Database["public"]['Enums']["appointment_status"]
                   }
                   Update: {
-                    "barber_id"?: string,"barbershop_id"?: string,"cancelled_at"?: string | null,"created_at"?: string,"customer_email"?: string,"customer_name"?: string,"customer_phone"?: string,"data_consent_at"?: string,"ends_at"?: string,"id"?: string,"service_duration_minutes"?: number,"service_id"?: string,"service_price"?: number,"starts_at"?: string,"status"?: Database["public"]['Enums']["appointment_status"]
+                    "barber_id"?: string,"barbershop_id"?: string,"cancel_token_hash"?: string | null,"cancelled_at"?: string | null,"created_at"?: string,"customer_email"?: string,"customer_name"?: string,"customer_phone"?: string,"data_consent_at"?: string,"ends_at"?: string,"id"?: string,"service_duration_minutes"?: number,"service_id"?: string,"service_price"?: number,"starts_at"?: string,"status"?: Database["public"]['Enums']["appointment_status"]
                   }
                   Relationships: [
                     {
