@@ -58,6 +58,7 @@ Plataforma multi-tenant donde cada barbería tiene su propio espacio, identifica
 | `npm run test:db` | Tests de base de datos (pgTAP, `supabase/tests/*.sql`) |
 | `npm run test:integration` | Tests contra Supabase local en marcha (Vitest, `tests/integration/`); se niegan a correr contra un entorno remoto |
 | `npm run db:types` | Regenera `src/lib/database.types.ts` desde la base local; ejecutar tras cada migración |
+| `npm run barbershop:create -- --name "…" --subdomain … --admin-email …` | Alta de barbería + admin + perfil (super admin). Muestra la contraseña una sola vez. Contra un entorno remoto exige `--confirm-remote` |
 | `npm run build` | Compilación de producción |
 
 Si `npm run build` falla con `EPERM ... unlink '.next\...'`, detener cualquier `next start` y borrar `.next` (el proyecto está en OneDrive, que bloquea archivos de esa carpeta).
@@ -73,7 +74,11 @@ Antes de dar una tarea por terminada: `lint`, `typecheck`, `test` y, si se tocó
 - `src/proxy.ts`: lo que antes era middleware (Next.js 16). Reescribe `<barberia>.dominio/x` a `/s/<barberia>/x`; las rutas `/s/...` solo se alcanzan por subdominio. La lógica pura está en `src/lib/tenant.ts`.
 - `src/app/s/[subdomain]/`: páginas de cada barbería; comprueban que exista y esté activa (`getPublicBarbershop`) o responden "Barbería no encontrada" (404).
 - `src/app/`: resto de rutas, páginas y layouts (App Router).
-- `src/lib/supabase/service.ts`: cliente con la clave secreta (`server-only`).
+- `src/lib/supabase/service.ts`: cliente con la clave secreta (`server-only`). `src/lib/supabase/server.ts`: cliente con la sesión del usuario (RLS). `src/lib/supabase/proxy.ts`: refresco de sesión, solo en `/admin`.
+- `src/lib/admin/`: capa de servidor del panel (agente principal): `session.ts` (quién es y si es admin de esta barbería), `actions.ts` (server actions), `queries.ts`, `schemas.ts` (Zod compartido), `action-state.ts`.
+- `src/lib/time.ts`: único módulo de zona horaria y formatos `es-CO` (constitución IV).
+- `src/app/s/[subdomain]/admin/`: panel (`login/` y el grupo `(panel)/` protegido).
+- `scripts/`: herramientas del super admin (`create-barbershop.mts`).
 - `src/components/` (`ui/` es de shadcn), `src/lib/`: utilidades, clientes de Supabase, esquemas Zod compartidos.
 - `supabase/migrations/`, `supabase/seed.sql`, `supabase/tests/`: base de datos.
 - `tests/e2e/`: Playwright (desde la fase 4).

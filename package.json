@@ -12,8 +12,9 @@
     "test:db": "supabase test db",
     "db:start": "supabase start",
     "db:reset": "supabase db reset",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
-    "db:types": "supabase gen types typescript --local > src/lib/database.types.ts"
+    "test:integration": "vitest run --config vitest.integration.config.mts",
+    "db:types": "supabase gen types typescript --local > src/lib/database.types.ts",
+    "barbershop:create": "node --env-file=.env.local scripts/create-barbershop.mts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

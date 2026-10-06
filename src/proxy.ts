@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { refreshSession } from "@/lib/supabase/proxy";
 import { resolveTenant } from "@/lib/tenant";
 
 // Next.js 16 llama "proxy" a lo que antes era middleware.
@@ -7,18 +8,24 @@ import { resolveTenant } from "@/lib/tenant";
 // la página de /s/[subdomain] comprueba si la barbería existe y está activa.
 const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "localhost:3000";
 const TENANT_PREFIX = "/s";
+const ADMIN_PATH = "/admin";
 
 // Ruta inexistente: Next.js responde con la página 404 y estado 404.
 function notFound(request: NextRequest) {
   return NextResponse.rewrite(new URL("/404", request.url));
 }
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const tenant = resolveTenant(request.headers.get("host"), ROOT_DOMAIN);
 
   if (tenant.kind === "tenant") {
     const target = new URL(`${TENANT_PREFIX}/${tenant.subdomain}${pathname}${search}`, request.url);
+
+    // Solo el panel usa sesión: allí se refresca; la web pública no la necesita.
+    if (pathname === ADMIN_PATH || pathname.startsWith(`${ADMIN_PATH}/`)) {
+      return refreshSession(request, () => NextResponse.rewrite(target, { request }));
+    }
     return NextResponse.rewrite(target);
   }
 
