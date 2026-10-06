@@ -18,6 +18,7 @@ export default defineConfig({
     command: "npm run dev",
     url: "http://localhost:3000",
     reuseExistingServer: true,
+    env: { EMAIL_TRANSPORT: "outbox" }, // la confirmación se escribe en .outbox/ en vez de enviarse
     timeout: 120_000,
   },
 });

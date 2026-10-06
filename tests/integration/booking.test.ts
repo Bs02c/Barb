@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PublicBarbershop } from "@/lib/barbershops";
-import { bookAppointment } from "@/lib/booking/book";
+import { bookAppointment as bookOutcome } from "@/lib/booking/book";
+import { hashToken } from "@/lib/cancellation/token";
 import type { BookingInput } from "@/lib/booking/schemas";
-import { submitBooking } from "@/lib/booking/submit";
+import { submitBooking as submitOutcome } from "@/lib/booking/submit";
 import { createServiceClient } from "@/lib/supabase/service";
 import { localDateTimeToUtc } from "@/lib/time";
 
@@ -16,6 +17,10 @@ if (!url || !["127.0.0.1", "localhost"].includes(new URL(url).hostname)) {
 }
 
 const db = createServiceClient();
+
+// Los tests de reglas miran solo el resultado para el navegador; los de la confirmación, el outcome completo.
+const bookAppointment = async (...args: Parameters<typeof bookOutcome>) => (await bookOutcome(...args)).result;
+const submitBooking = async (...args: Parameters<typeof submitOutcome>) => (await submitOutcome(...args)).result;
 const TZ = "America/Bogota";
 const NOW = localDateTimeToUtc("2030-01-07T08:00", TZ); // lunes 7 de enero de 2030, 8:00 en Bogotá
 const at = (local: string) => localDateTimeToUtc(local, TZ).toISOString();
@@ -262,5 +267,54 @@ describe("submitBooking (envío del formulario)", () => {
     const result = await submitBooking(host(), shop.subdomain, form(valid()), NOW);
     expect(result).toMatchObject({ ok: true, summary: { barberName: "Andrés" } });
     expect(await activeCount(andres, at("2030-01-15T09:00"))).toBe(1);
+  });
+});
+
+describe("confirmación y token de cancelación (spec 003)", () => {
+  it("guarda el hash del token del enlace, sin el token en claro y sin exponerlo al navegador", async () => {
+    const startsAt = at("2030-01-17T09:00");
+    const { result, confirmation } = await bookOutcome(shop, input({ starts_at: startsAt }), NOW);
+    expect(result).toMatchObject({ ok: true });
+    expect(confirmation).toBeDefined();
+
+    const token = confirmation!.cancelUrl.split("/cancelar/")[1];
+    expect(token).toHaveLength(43);
+    expect(confirmation!.cancelUrl).toContain(`${shop.subdomain}.`);
+    expect(JSON.stringify(result)).not.toContain(token); // el navegador no ve el token
+
+    const { data } = await db
+      .from("appointments")
+      .select("cancel_token_hash")
+      .eq("barber_id", andres)
+      .eq("starts_at", startsAt)
+      .single();
+    expect(data!.cancel_token_hash).toBe(hashToken(token));
+    expect(JSON.stringify(data)).not.toContain(token); // nunca en claro
+  });
+
+  it("el correo va al cliente con los datos de la cita", async () => {
+    const { confirmation } = await bookOutcome(
+      shop,
+      input({ starts_at: at("2030-01-17T10:00"), customer_email: "destino@example.com" }),
+      NOW,
+    );
+    expect(confirmation).toMatchObject({
+      to: "destino@example.com",
+      barbershopName: shop.name,
+      summary: { serviceName: "Corte", barberName: "Andrés" },
+    });
+  });
+
+  it("una reserva rechazada no genera correo", async () => {
+    const { result, confirmation } = await bookOutcome(shop, input({ starts_at: at("2030-01-17T18:00") }), NOW);
+    expect(result).toMatchObject({ ok: false });
+    expect(confirmation).toBeUndefined();
+  });
+
+  it("el honeypot no genera correo", async () => {
+    const data = new FormData();
+    data.set("website", "http://spam.example");
+    const outcome = await submitOutcome(`${shop.subdomain}.${ROOT}`, shop.subdomain, data, NOW);
+    expect(outcome.confirmation).toBeUndefined();
   });
 });

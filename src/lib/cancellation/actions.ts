@@ -1,17 +1,22 @@
 "use server";
 
+import { headers } from "next/headers";
 import type { CancelResult } from "./cancellation-state";
+import { submitCancellation } from "./cancel";
 
 /**
  * Server action del botón "Cancelar cita".
  * Uso: `useActionState(cancelAppointment.bind(null, subdomain, token), initialCancelState)`.
- * `subdomain` viaja desde el navegador y no es de fiar: se resuelve la barbería del Host.
+ *
+ * `subdomain` y `token` viajan desde el navegador y no son de fiar: submitCancellation resuelve la
+ * barbería del Host de la petición y rechaza el envío si no coincide (SEC-001).
  */
 export async function cancelAppointment(
-  _subdomain: string,
-  _token: string,
+  subdomain: string,
+  token: string,
   _prev: CancelResult | null,
   _formData: FormData,
 ): Promise<CancelResult> {
-  throw new Error("pendiente: T009"); // cuerpo provisional; el contrato es la firma
+  const host = (await headers()).get("host");
+  return submitCancellation(host, subdomain, token);
 }

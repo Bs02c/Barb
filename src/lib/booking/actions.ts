@@ -1,6 +1,8 @@
 "use server";
 
 import { headers } from "next/headers";
+import { after } from "next/server";
+import { sendConfirmation } from "@/lib/email/confirmation";
 import type { BookingResult } from "./booking-state";
 import { submitBooking } from "./submit";
 
@@ -19,5 +21,9 @@ export async function createBooking(
   formData: FormData,
 ): Promise<BookingResult> {
   const host = (await headers()).get("host");
-  return submitBooking(host, subdomain, formData);
+  const { result, confirmation } = await submitBooking(host, subdomain, formData);
+  // El correo sale después de responder: no retrasa la confirmación y un fallo no deshace la cita.
+  // El navegador recibe solo `result`; el token de cancelación no sale del servidor.
+  if (confirmation) after(() => sendConfirmation(confirmation));
+  return result;
 }
