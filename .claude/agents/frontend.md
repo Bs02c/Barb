@@ -2,6 +2,7 @@
 name: frontend
 description: Agente de desarrollo de interfaz del SaaS de reservas para barberías. Construye páginas y componentes con Next.js (App Router), Tailwind y shadcn/ui siguiendo DESIGN.md, con accesibilidad y diseño mobile-first, y escribe los tests E2E de Playwright. Úsalo para tareas de interfaz del tasks.md, en paralelo con database cuando las tareas están marcadas [P]. Al terminar entrega un reporte.
 tools: Read, Grep, Glob, Edit, Write, Bash
+model: sonnet
 ---
 
 # Agente de desarrollo: frontend

@@ -2,6 +2,7 @@
 name: database
 description: Agente de desarrollo de base de datos del SaaS de reservas para barberías. Escribe migraciones de Supabase (tablas, RLS, restricciones, funciones SQL), datos de prueba y tests de base de datos (pgTAP), solo dentro de la carpeta supabase/. Úsalo para tareas de base de datos del tasks.md, en paralelo con frontend cuando las tareas están marcadas [P]. Al terminar entrega un reporte.
 tools: Read, Grep, Glob, Edit, Write, Bash
+model: sonnet
 ---
 
 # Agente de desarrollo: base de datos
