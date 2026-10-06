@@ -297,9 +297,27 @@ export async function deleteBlock(subdomain: string, _prev: ActionState, formDat
 
 /** formData: id. Cancela una cita de esta barbería que está activa y aún no ha empezado. */
 export async function adminCancelAppointment(
-  _subdomain: string,
+  subdomain: string,
   _prev: ActionState,
-  _formData: FormData,
+  formData: FormData,
 ): Promise<ActionState> {
-  throw new Error("pendiente: T003");
+  await requireAdmin(subdomain);
+  const parsed = parseForm(idSchema, formData);
+  if (!parsed.success) return invalid(parsed.error);
+
+  // Una sola sentencia condicionada: RLS limita a las citas de su barbería y el servidor exige que
+  // esté activa y no haya empezado. 0 filas = otra pestaña o el cliente ya la cancelaron, o ya empezó.
+  const now = new Date().toISOString();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("appointments")
+    .update({ status: "cancelled", cancelled_at: now })
+    .eq("id", parsed.data.id)
+    .eq("status", "active")
+    .gt("starts_at", now)
+    .select("id");
+  if (error) return fromDatabase(error);
+  if (data.length === 0) return { ok: false, message: "Esta cita ya no se puede cancelar." };
+  refresh(subdomain);
+  return { ok: true, message: "Cita cancelada." };
 }

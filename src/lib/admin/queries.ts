@@ -1,4 +1,5 @@
 import "server-only";
+import { dayRangeUtc } from "@/lib/admin/agenda";
 import type { AdminBarbershop } from "@/lib/admin/session";
 import { createClient } from "@/lib/supabase/server";
 
@@ -73,9 +74,33 @@ export type AgendaAppointment = {
  * activas antes que las canceladas. Con la sesión del admin: RLS limita a su barbería.
  */
 export async function listAppointmentsForDay(
-  _barbershop: AdminBarbershop,
-  _localDate: string,
-  _barberId?: string,
+  barbershop: AdminBarbershop,
+  localDate: string,
+  barberId?: string,
 ): Promise<AgendaAppointment[]> {
-  throw new Error("pendiente: T003");
+  const { start, end } = dayRangeUtc(localDate, barbershop.timezone);
+  const supabase = await createClient();
+  let query = supabase
+    .from("appointments")
+    .select("id, starts_at, ends_at, status, customer_name, customer_phone, barbers(name), services(name)")
+    .gte("starts_at", start)
+    .lt("starts_at", end)
+    .order("starts_at");
+  if (barberId) query = query.eq("barber_id", barberId);
+  const { data, error } = await query;
+  if (error) throw error;
+
+  return data
+    .map((a) => ({
+      id: a.id,
+      startsAt: a.starts_at,
+      endsAt: a.ends_at,
+      status: a.status,
+      customerName: a.customer_name,
+      customerPhone: a.customer_phone,
+      barberName: a.barbers?.name ?? "",
+      serviceName: a.services?.name ?? "",
+    }))
+    // Misma hora: primero las activas (el orden de Postgres ya es estable por hora).
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt) || Number(a.status === "cancelled") - Number(b.status === "cancelled"));
 }

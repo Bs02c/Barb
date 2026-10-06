@@ -89,7 +89,11 @@ export type BlockInput = z.infer<typeof blockSchema>;
 const realLocalDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
-  .refine((v) => new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v); // descarta 2026-02-30
+  .refine((v) => {
+    // Descarta 2026-02-30 y 2026-13-01 (Date.parse da NaN en vez de lanzar, a diferencia de toISOString).
+    const time = Date.parse(`${v}T00:00:00Z`);
+    return !Number.isNaN(time) && new Date(time).toISOString().slice(0, 10) === v;
+  });
 
 export const agendaParamsSchema = z.object({
   dia: realLocalDate.optional().catch(undefined),
