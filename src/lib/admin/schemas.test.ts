@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockSchema, scheduleSlotSchema, serviceSchema } from "./schemas";
+import { agendaParamsSchema, blockSchema, scheduleSlotSchema, serviceSchema } from "./schemas";
 
 const BARBER = "00000000-0000-4000-8000-000000000010";
 
@@ -54,5 +54,22 @@ describe("blockSchema", () => {
       blockSchema.safeParse({ barber_id: BARBER, starts_at: "2026-10-13T12:00", ends_at: "2026-10-13T10:00" })
         .success,
     ).toBe(false);
+  });
+});
+
+describe("agendaParamsSchema", () => {
+  it("acepta un día real y un barbero válido", () => {
+    expect(agendaParamsSchema.parse({ dia: "2026-10-13", barbero: BARBER })).toEqual({ dia: "2026-10-13", barbero: BARBER });
+  });
+
+  it("sin parámetros: ambos indefinidos", () => {
+    expect(agendaParamsSchema.parse({})).toEqual({ dia: undefined, barbero: undefined });
+  });
+
+  it("ignora valores inválidos en lugar de fallar", () => {
+    for (const dia of ["2026-02-30", "mañana", "<script>", "2026-13-01", "2026-1-1"]) {
+      expect(agendaParamsSchema.parse({ dia })).toEqual({ dia: undefined, barbero: undefined });
+    }
+    expect(agendaParamsSchema.parse({ barbero: "no-es-uuid" })).toEqual({ dia: undefined, barbero: undefined });
   });
 });

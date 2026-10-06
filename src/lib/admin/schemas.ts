@@ -83,3 +83,19 @@ export type BarberInput = z.infer<typeof barberSchema>;
 export type ServiceInput = z.infer<typeof serviceSchema>;
 export type ScheduleSlotInput = z.infer<typeof scheduleSlotSchema>;
 export type BlockInput = z.infer<typeof blockSchema>;
+
+// Parámetros de la URL de la agenda (?dia=2026-10-13&barbero=<uuid>). Un valor inválido se ignora
+// (hoy / todos los barberos): nadie ve un error técnico por editar la URL.
+const realLocalDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((v) => {
+    // Descarta 2026-02-30 y 2026-13-01 (Date.parse da NaN en vez de lanzar, a diferencia de toISOString).
+    const time = Date.parse(`${v}T00:00:00Z`);
+    return !Number.isNaN(time) && new Date(time).toISOString().slice(0, 10) === v;
+  });
+
+export const agendaParamsSchema = z.object({
+  dia: realLocalDate.optional().catch(undefined),
+  barbero: z.uuid().optional().catch(undefined),
+});
