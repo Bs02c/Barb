@@ -44,7 +44,7 @@ Flujo de reserva en el subdominio de cada barbería (`/reservar`) en 4 pasos gua
 | IV. UTC | Conversión solo con `src/lib/time.ts`; la URL y el formulario viajan en UTC ✅ |
 | V. Validación | Zod compartido; E.164; honeypot y tope por número ✅ |
 | VI. Datos personales | Solo nombre, número y correo; consentimiento obligatorio con fecha; política enlazada ✅ (texto de la política pendiente de revisión legal) |
-| VII. Simplicidad | Sin cambios de esquema, sin librería de estado, sin `libphonenumber`; el tope no atómico se acepta (research §4) ✅ |
+| VII. Simplicidad | Sin cambios de esquema, sin librería de estado, sin `libphonenumber`; el tope atómico se añadió con un trigger tras la revisión (research §4) ✅ |
 | VIII. Portabilidad | Nada exclusivo de Vercel ✅ |
 | Límites | **Preguntar primero**: añadir `@playwright/test` y `@axe-core/playwright` y descargar Chromium (≈150 MB): se pide con este plan ✅ |
 
@@ -94,4 +94,4 @@ playwright.config.ts                # frontend
 
 | Desviación | Por qué | Alternativa más simple descartada porque |
 |---|---|---|
-| Tope por número no atómico | El tope es antiabuso blando | Hacerlo atómico exige bloqueo o trigger, que es complejidad desproporcionada para el MVP |
+| Trigger del tope por número (migración posterior, 2026-10-06) | Sin él, reservas simultáneas superan el tope y llenan la agenda; es la única defensa antispam del MVP | Solo contar en la aplicación: no es atómico |

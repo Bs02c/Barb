@@ -52,3 +52,38 @@ description: "Tareas de la fase 4: reserva pública de citas"
 - El contrato (firmas de T005 y T006) se publica antes de lanzar al `frontend`; T008, T009, T010, T012 y T013 corren en paralelo con T006, T007 y T011.
 - T001 → T015.
 - Todo → T016 → T017 → T018.
+
+## Corrección posterior: tope por número atómico (2026-10-06)
+
+**Motivo**: el tope de 2 citas activas por número (FR-013) se comprueba en `book.ts` contando y después insertando, en dos pasos. N reservas simultáneas del mismo número con horas distintas pasan todas el conteo (ven 0 citas) y se guardan todas. Un script puede llenar la agenda con un solo número. Sin Turnstile ni rate limiting (Roadmap), el tope es la única defensa del MVP. Se revisa research §4 ("límite conocido") por decisión del usuario.
+
+**Solución**: un trigger `BEFORE INSERT` en `appointments`. Se pone en fila por (barbería, número) con un candado de transacción, cuenta las citas activas futuras y rechaza la tercera. El conteo de `book.ts` se mantiene: da el mensaje rápido en el caso normal, y el trigger garantiza la regla con concurrencia (constitución III).
+
+**Rama**: `main` (corrección pequeña, sin spec nueva). Commit `fix:`. Sin revisión de los tres agentes: entra en la revisión del hito de la fase 5.
+
+- [ ] T019 [database] Migración nueva `npx supabase migration new appointments_phone_limit` (no editar migraciones aplicadas):
+  - Función `private.appointments_enforce_phone_limit()`, `language plpgsql`, `set search_path = ''`. Debe ser **VOLATILE**, el valor por defecto: así el `select count` toma una instantánea nueva después del candado y ve las citas que la otra transacción acaba de confirmar. No marcarla `stable`.
+  - Lógica: si `new.status = 'active' and new.starts_at > now()`:
+    1. `perform pg_advisory_xact_lock(hashtextextended(new.barbershop_id::text || ':' || new.customer_phone, 0));`
+    2. Contar en `public.appointments` las filas con el mismo `barbershop_id` y `customer_phone`, `status = 'active'` y `starts_at > now()`.
+    3. Si el conteo es `>= 2`, lanzar `raise exception 'tope de citas activas por número (appointments_phone_limit)' using errcode = 'check_violation', constraint = 'appointments_phone_limit';`.
+  - `return new;`.
+  - `revoke execute ... from public, anon;`, igual que `appointments_prevent_reactivation` en `20261004155222_appointments.sql`.
+  - Trigger `appointments_phone_limit`: `before insert on public.appointments for each row`.
+  - Comentario en la migración: el 2 debe coincidir con `MAX_ACTIVE_PER_PHONE` en `src/lib/booking/book.ts`; motivo (concurrencia, research §4 revisado); el candado se libera al terminar la transacción.
+- [ ] T020 [database] pgTAP `supabase/tests/05_phone_limit.test.sql` (`begin; … rollback;`, estilo de `04_constraints.test.sql`, comprobando código y mensaje):
+  - (a) 2 citas activas futuras del mismo número → la 3.ª falla con `23514` y el mensaje exacto;
+  - (b) las canceladas no cuentan;
+  - (c) las pasadas no cuentan: insertar con `starts_at` en el pasado;
+  - (d) el mismo número en otra barbería no cuenta;
+  - (e) otro número en la misma barbería no cuenta;
+  - (f) insertar una cita ya cancelada no se ve limitada.
+
+  **Revisar los tests existentes** (`01`–`04`): si insertan 3 o más citas activas futuras con el mismo número en la misma barbería, variar el número. Un cambio de test no es editar una migración. Ejecutar `npm run db:reset`, comprobar que el seed carga, y `npm run test:db` en verde. Luego `npm run db:types`.
+- [ ] T021 [principal] `src/lib/booking/book.ts`, función `fromDatabase`: si `error.code === "23514"` y `error.message` contiene `appointments_phone_limit` → `{ result: LIMIT_REACHED }`. Comentario junto a `MAX_ACTIVE_PER_PHONE`: "el trigger appointments_phone_limit aplica el mismo tope en la base de datos; cambiar ambos a la vez". Actualizar research §4 ("Límite conocido" → "Tope atómico por trigger, 2026-10-06") y la tabla "Seguimiento de complejidad" de `plan.md`.
+- [ ] T022 [principal] `tests/integration/booking.test.ts`, test nuevo: 5 `bookAppointment` simultáneos (`Promise.all`) con el mismo número y 5 horas libres distintas de un día propio. Ningún otro test debe usar ese día: elegir uno libre, p. ej. `2030-01-16` (miércoles; el 15 ya lo usan los tests de submitBooking), y repartir entre Andrés y Camilo de 9:00 a 11:00. Comprobar:
+  - exactamente 2 `ok`;
+  - 3 con `code: "limit_reached"`, nunca `server_error`;
+  - 2 filas activas con ese número en la base.
+
+  Después `npm run lint`, `typecheck`, `test`, `test:db`, `test:integration`, `test:e2e`, y commit `fix: tope de citas por número atómico en la base de datos` en `main`.

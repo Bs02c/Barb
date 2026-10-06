@@ -37,7 +37,7 @@ Server action `createBooking`, con la clave secreta y siempre con el `barbershop
 6. Insertar la cita copiando duración y precio, con `data_consent_at = now()`.
 7. Errores: `23P01` → "Ese horario ya no está disponible"; `40P01` → reintentar una vez desde el paso 4 y, si vuelve a fallar, el mismo mensaje.
 
-**Límite conocido**: el tope no es atómico. Dos reservas simultáneas del mismo número podrían dejar 3 citas. Se acepta porque es antiabuso blando; no se usa un bloqueo o trigger por esto (constitución VII).
+**Tope atómico (revisado 2026-10-06)**: contar y luego insertar dejaba pasar N reservas simultáneas del mismo número. El conteo de `book.ts` se mantiene para el mensaje rápido y el trigger `appointments_phone_limit` (candado por barbería y número) garantiza el tope; su error 23514 se traduce a `limit_reached`.
 
 ## 5. Número de contacto
 

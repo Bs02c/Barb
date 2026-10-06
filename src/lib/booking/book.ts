@@ -11,7 +11,9 @@ import { EARLIEST, type BookingInput } from "./schemas";
 // Reserva de una cita desde la web pública (spec 002, research §4).
 // Separado de la server action para poder probarlo en tests de integración.
 
-export const MAX_ACTIVE_PER_PHONE = 2; // FR-013
+// FR-013. El trigger appointments_phone_limit aplica el mismo tope en la base de datos con
+// reservas simultáneas: cambiar ambos a la vez.
+export const MAX_ACTIVE_PER_PHONE = 2;
 
 const SLOT_TAKEN: BookingResult = { ok: false, code: "slot_taken", message: MESSAGES.slotTaken };
 const UNAVAILABLE: BookingResult = { ok: false, code: "unavailable", message: MESSAGES.unavailable };
@@ -29,7 +31,7 @@ async function attempt(barbershop: PublicBarbershop, input: BookingInput, now: D
 
   // 2 y 3 en paralelo (revisión fase 4, PERF-006):
   // - revalidar la hora con datos actuales: horario, bloqueos, citas, antelación y horizonte (FR-008);
-  // - tope de citas activas futuras por número en esta barbería (no atómico: research §4).
+  // - tope de citas activas futuras por número en esta barbería (mensaje rápido; el trigger lo garantiza).
   const [slots, active] = await Promise.all([
     loadSlots(barbershop, selection, { now, fromDate: localDate, days: 1 }),
     db
@@ -83,6 +85,8 @@ async function attempt(barbershop: PublicBarbershop, input: BookingInput, now: D
 }
 
 function fromDatabase(error: PostgrestError, input: BookingInput): Attempt {
+  // El tope por número ganó la carrera: el conteo previo vio menos citas que el trigger.
+  if (error.code === "23514" && error.message.includes("appointments_phone_limit")) return { result: LIMIT_REACHED };
   // Otra reserva tomó el hueco. Con "Lo más pronto" se reintenta: puede quedar otro barbero libre
   // a esa hora (research §3; revisión fase 4, PERF-005).
   if (error.code === "23P01") return input.barber_id === EARLIEST ? { retry: true } : { result: SLOT_TAKEN };

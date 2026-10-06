@@ -16,6 +16,7 @@ insert into public.services (id, barbershop_id, name, duration_minutes, price) v
   ('aaaaaaaa-0000-4000-8000-0000000000c1', 'aaaaaaaa-0000-4000-8000-000000000001', 'Corte', 30, 20000);
 
 -- Inserta una cita de 30 minutos que empieza a la hora local indicada (Bogotá) del 2030-01-07.
+create temp sequence phone_seq;
 create function pg_temp.book(p_barber uuid, p_local_start text)
 returns uuid
 language sql
@@ -27,7 +28,7 @@ as $$
     'aaaaaaaa-0000-4000-8000-000000000001', p_barber, 'aaaaaaaa-0000-4000-8000-0000000000c1',
     ('2030-01-07 ' || p_local_start)::timestamp at time zone 'America/Bogota',
     ('2030-01-07 ' || p_local_start)::timestamp at time zone 'America/Bogota' + interval '30 minutes',
-    30, 20000, 'Cliente', '+573001234567', 'cliente@test.example.com', now())
+    30, 20000, 'Cliente', '+5730000' || lpad(nextval('pg_temp.phone_seq')::text, 5, '0'), 'cliente@test.example.com', now())
   returning id;
 $$;
 

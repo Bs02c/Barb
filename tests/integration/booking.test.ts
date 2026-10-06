@@ -185,6 +185,33 @@ describe("bookAppointment", () => {
     expect(await activeCount(andres, startsAt)).toBe(1);
     expect(await activeCount(camilo, startsAt)).toBe(1);
   });
+
+  it("5 reservas simultáneas del mismo número con horas distintas: solo 2 se guardan (tope atómico)", async () => {
+    const phone = "+573008887766";
+    const slots: [string, string][] = [
+      [andres, "2030-01-16T09:00"],
+      [andres, "2030-01-16T10:00"],
+      [andres, "2030-01-16T11:00"],
+      [camilo, "2030-01-16T09:00"],
+      [camilo, "2030-01-16T10:00"],
+    ];
+    const results = await Promise.all(
+      slots.map(([barber, local]) =>
+        bookAppointment(shop, input({ barber_id: barber, customer_phone: phone, starts_at: at(local) }), NOW),
+      ),
+    );
+    expect(results.filter((r) => r.ok)).toHaveLength(2);
+    // Siempre el mensaje de límite, nunca un error genérico.
+    expect(results.filter((r) => !r.ok).every((r) => !r.ok && r.code === "limit_reached")).toBe(true);
+    const { count, error } = await db
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("barbershop_id", shop.id)
+      .eq("customer_phone", phone)
+      .eq("status", "active");
+    if (error) throw error;
+    expect(count).toBe(2); // la prueba de verdad: dos filas, no cinco
+  });
 });
 
 describe("submitBooking (envío del formulario)", () => {
