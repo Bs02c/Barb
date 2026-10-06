@@ -290,3 +290,16 @@ export async function deleteBlock(subdomain: string, _prev: ActionState, formDat
   refresh(subdomain);
   return { ok: true, message: "Bloqueo eliminado." };
 }
+
+// ---------------------------------------------------------------------------
+// Agenda
+// ---------------------------------------------------------------------------
+
+/** formData: id. Cancela una cita de esta barbería que está activa y aún no ha empezado. */
+export async function adminCancelAppointment(
+  _subdomain: string,
+  _prev: ActionState,
+  _formData: FormData,
+): Promise<ActionState> {
+  throw new Error("pendiente: T003");
+}
