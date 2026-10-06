@@ -39,7 +39,7 @@ Plataforma multi-tenant donde cada barbería tiene su propio espacio, identifica
 - Zod (validación)
 - **Supabase (nube, plan gratuito):** PostgreSQL, Supabase Auth (roles: `super_admin`, `admin`), Row Level Security
 - Cliente: `@supabase/ssr` + `supabase-js`
-- Resend + React Email (correo)
+- Resend (correo, por `fetch` a su API, sin SDK ni React Email: ADR-015)
 - Supabase CLI para desarrollo local y migraciones versionadas
 - Playwright + `@axe-core/playwright` para 3–5 tests E2E y de accesibilidad (ADR-012)
 - Spec Kit para spec-driven development (ver más abajo)
@@ -79,14 +79,17 @@ Antes de dar una tarea por terminada: `lint`, `typecheck`, `test` y, si se tocó
 - `src/lib/admin/`: capa de servidor del panel (agente principal): `session.ts` (quién es y si es admin de esta barbería), `actions.ts` (server actions), `queries.ts`, `schemas.ts` (Zod compartido), `action-state.ts`.
 - `src/lib/time.ts`: único módulo de zona horaria y formatos `es-CO` (constitución IV); `createZoneConverter` para cálculos masivos.
 - `src/lib/booking/`: reserva pública (agente principal): `availability.ts` (cálculo puro de huecos), `queries.ts`, `book.ts`, `submit.ts` (resuelve la barbería del **Host**, nunca de un dato del navegador), `actions.ts`, `schemas.ts`, `phone.ts`, `messages.ts`.
+- `src/lib/cancellation/`: cancelación con enlace (agente principal): `token.ts` (token de 256 bits, hash SHA-256, URL del enlace), `queries.ts` (lectura; abrir el enlace nunca cancela), `cancel.ts` (`submitCancellation`: resuelve la barbería del **Host** y cancela con una sola sentencia atómica), `actions.ts`, `schemas.ts`, `messages.ts`, `cancellation-state.ts`.
+- `src/lib/email/`: `send.ts` (transporte `outbox` en desarrollo y tests, escribe en `.outbox/`; `resend` en producción; el outbox está prohibido en producción), `confirmation.ts` (plantilla HTML con `escapeHtml`; `sendConfirmation` nunca lanza), `escape.ts`. Variables: `EMAIL_TRANSPORT`, `EMAIL_FROM`, `RESEND_API_KEY`.
+- `src/lib/log.ts`: `logSafeError`, la única forma de registrar errores (solo código y mensaje, sin datos personales ni tokens).
 - `src/lib/validation.ts`: `toFieldErrors`, conversión única de errores de Zod.
-- `src/app/s/[subdomain]/reservar/` (flujo en 4 pasos guardado en la URL) y `privacidad/` (plantilla pendiente de revisión legal).
+- `src/app/s/[subdomain]/reservar/` (flujo en 4 pasos guardado en la URL; "Lo más pronto" salta al paso de datos), `cancelar/[token]/` (el GET muestra, el botón cancela) y `privacidad/` (plantilla pendiente de revisión legal).
 - `src/components/forms/`: campos de formulario compartidos por el panel y la reserva.
-- `src/app/s/[subdomain]/admin/`: panel (`login/` y el grupo `(panel)/` protegido).
+- `src/app/s/[subdomain]/admin/`: panel (`login/` y el grupo `(panel)/` protegido). `/admin` es la **agenda** (día y barbero por `?dia=&barbero=`; `src/lib/admin/agenda.ts` y `src/components/admin/agenda-table.tsx`).
 - `scripts/`: herramientas del super admin (`create-barbershop.mts`).
 - `src/components/` (`ui/` es de shadcn), `src/lib/`: utilidades, clientes de Supabase, esquemas Zod compartidos.
 - `supabase/migrations/`, `supabase/seed.sql`, `supabase/tests/`: base de datos.
-- `tests/e2e/`: Playwright (desde la fase 4).
+- `tests/e2e/`: Playwright (reserva, cancelación con enlace y agenda); `global-setup.ts` vacía `.outbox/` antes de cada ejecución.
 - `specs/<nnn-nombre>/`: specs de Spec Kit; `.specify/`: constitución y plantillas.
 - Variables de entorno: `.env.example` (plantilla, versionada) y `.env.local` (valores reales, no versionado).
 
@@ -147,10 +150,10 @@ Antes de dar una tarea por terminada: `lint`, `typecheck`, `test` y, si se tocó
 
 ## Agentes de desarrollo
 Subagentes en `.claude/agents/` que implementan en paralelo las tareas `[P]` de `tasks.md` y entregan un reporte (ADR-013):
-- **`database`**: migraciones, RLS, restricciones, seed y tests pgTAP. Solo escribe en `supabase/`.
-- **`frontend`**: páginas y componentes según `DESIGN.md`, accesibilidad y Playwright. Solo escribe en `src/app/`, `src/components/` y `tests/e2e/`.
+- **`database`** (modelo Sonnet): migraciones, RLS, restricciones, seed y tests pgTAP. Solo escribe en `supabase/`.
+- **`frontend`** (modelo Sonnet): páginas y componentes según `DESIGN.md`, accesibilidad y Playwright. Solo escribe en `src/app/`, `src/components/` y `tests/e2e/`.
 
-El agente principal escribe spec, plan y tareas, define el contrato entre ambos, escribe las server actions y los clientes de Supabase, integra, ejecuta los tests, explica y hace el commit.
+El agente principal escribe spec, plan y tareas, define el contrato entre ambos, escribe las server actions y los clientes de Supabase, integra, ejecuta los tests, explica y hace el commit. Con agentes escribiendo en paralelo, añade archivos a git por nombre, no con `git add -A`.
 
 ## Agentes de revisión de código
 Son subagentes de Claude Code definidos en `.claude/agents/` (solo lectura: `Read`, `Grep`, `Glob`). Su fuente de verdad es la constitución, las specs, este archivo, `Decisiones/` y `Arquitectura/` del vault y las migraciones de `supabase/migrations/`; pásales siempre el diff o la lista de archivos del cambio, porque no ejecutan comandos.
@@ -185,5 +188,5 @@ Vault: C:/Users/Bsrid/OneDrive/Escritorio/Obsidian/Barbería
 4. Si se tomó una decisión de arquitectura, crea un ADR en `Decisiones/`.
 5. Si hubo revisión de los agentes, guarda el informe consolidado en `Revisiones/`.
 
-## Primer paso
-Fase 1 del plan: modelo de datos del MVP y políticas RLS, con spec (`/speckit-specify`).
+## Siguiente paso
+Fases 0–6 terminadas. Falta la **fase 7: despliegue de pruebas** (Supabase en la nube, Vercel, dominio comodín, seed propio sin contraseñas conocidas, revisión de los tres agentes). Detalle y cosas a tener presentes en `Plan-de-ejecucion.md` del vault. Repositorio: `https://github.com/Bs02c/Barb.git` (`origin`).
