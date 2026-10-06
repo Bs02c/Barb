@@ -13,7 +13,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { SubmitButton } from "@/components/admin/fields";
+import { SubmitButton } from "@/components/forms/fields";
 import { useAdminForm, type AdminAction } from "@/components/admin/use-admin-form";
 import type { ActionState } from "@/lib/admin/action-state";
 

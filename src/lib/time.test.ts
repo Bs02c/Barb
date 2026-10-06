@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatPrice, formatTimeOfDay, localDateTimeToUtc, utcToLocalDateTime } from "./time";
+import { createZoneConverter, formatPrice, formatTimeOfDay, localDateTimeToUtc, utcToLocalDateTime } from "./time";
 
 describe("zona horaria de la barbería", () => {
   it("10:00 en Bogotá es 15:00 UTC (spec 001, historia 3)", () => {
@@ -32,5 +32,20 @@ describe("formatos en español de Colombia", () => {
 
   it("precio en pesos sin decimales", () => {
     expect(formatPrice(25000).replace(/\s/g, " ")).toBe("$ 25.000");
+  });
+});
+
+describe("createZoneConverter", () => {
+  it("da lo mismo que las funciones exactas en una ventana sin cambio de horario", () => {
+    const c = createZoneConverter("America/Bogota", new Date("2026-10-01T00:00Z"), new Date("2026-11-02T00:00Z"));
+    expect(c.localToUtcMs("2026-10-13T10:00")).toBe(localDateTimeToUtc("2026-10-13T10:00", "America/Bogota").getTime());
+    expect(c.toLocalDate(new Date("2026-10-14T00:30:00Z"))).toBe("2026-10-13"); // 19:30 del 13 en Bogotá
+  });
+
+  it("sigue siendo exacto en una ventana que cruza un cambio de horario", () => {
+    // Madrid pasa de verano (UTC+2) a invierno (UTC+1) el 25 de octubre de 2026.
+    const c = createZoneConverter("Europe/Madrid", new Date("2026-10-10T00:00Z"), new Date("2026-11-10T00:00Z"));
+    expect(new Date(c.localToUtcMs("2026-10-20T10:00")).toISOString()).toBe("2026-10-20T08:00:00.000Z");
+    expect(new Date(c.localToUtcMs("2026-10-30T10:00")).toISOString()).toBe("2026-10-30T09:00:00.000Z");
   });
 });

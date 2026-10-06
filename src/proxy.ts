@@ -1,12 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { refreshSession } from "@/lib/supabase/proxy";
-import { resolveTenant } from "@/lib/tenant";
+import { resolveTenant, ROOT_DOMAIN } from "@/lib/tenant";
 
 // Next.js 16 llama "proxy" a lo que antes era middleware.
 // Traduce el subdominio a una ruta interna: labarberia.midominio.com/x → /s/labarberia/x.
 // Aquí no se consulta la base de datos (el proxy no es para cargar datos):
 // la página de /s/[subdomain] comprueba si la barbería existe y está activa.
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "localhost:3000";
 const TENANT_PREFIX = "/s";
 const ADMIN_PATH = "/admin";
 

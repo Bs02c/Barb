@@ -56,6 +56,7 @@ Plataforma multi-tenant donde cada barbería tiene su propio espacio, identifica
 | `npm run typecheck` | Genera los tipos de rutas de Next.js y ejecuta `tsc` |
 | `npm test` | Tests unitarios (Vitest, `src/**/*.test.ts`) |
 | `npm run test:db` | Tests de base de datos (pgTAP, `supabase/tests/*.sql`) |
+| `npm run test:e2e` | Tests E2E con Playwright y escaneo de accesibilidad `axe` (`tests/e2e/`); arranca `npm run dev` si no está en marcha |
 | `npm run test:integration` | Tests contra Supabase local en marcha (Vitest, `tests/integration/`); se niegan a correr contra un entorno remoto |
 | `npm run db:types` | Regenera `src/lib/database.types.ts` desde la base local; ejecutar tras cada migración |
 | `npm run barbershop:create -- --name "…" --subdomain … --admin-email …` | Alta de barbería + admin + perfil (super admin). Muestra la contraseña una sola vez. Contra un entorno remoto exige `--confirm-remote` |
@@ -63,7 +64,7 @@ Plataforma multi-tenant donde cada barbería tiene su propio espacio, identifica
 
 Si `npm run build` falla con `EPERM ... unlink '.next\...'`, detener cualquier `next start` y borrar `.next` (el proyecto está en OneDrive, que bloquea archivos de esa carpeta).
 
-Antes de dar una tarea por terminada: `lint`, `typecheck`, `test` y, si se tocó la base de datos, `db:types`, `test:db` y `test:integration`.
+Antes de dar una tarea por terminada: `lint`, `typecheck`, `test` y, si se tocó la base de datos, `db:types`, `test:db` y `test:integration`; si se tocó la reserva pública, también `test:e2e`.
 
 ## Entornos de base de datos (ADR-014)
 - **Local** (Docker): desarrollo y todos los tests; datos de demostración en `supabase/seed.sql`.
@@ -76,7 +77,11 @@ Antes de dar una tarea por terminada: `lint`, `typecheck`, `test` y, si se tocó
 - `src/app/`: resto de rutas, páginas y layouts (App Router).
 - `src/lib/supabase/service.ts`: cliente con la clave secreta (`server-only`). `src/lib/supabase/server.ts`: cliente con la sesión del usuario (RLS). `src/lib/supabase/proxy.ts`: refresco de sesión, solo en `/admin`.
 - `src/lib/admin/`: capa de servidor del panel (agente principal): `session.ts` (quién es y si es admin de esta barbería), `actions.ts` (server actions), `queries.ts`, `schemas.ts` (Zod compartido), `action-state.ts`.
-- `src/lib/time.ts`: único módulo de zona horaria y formatos `es-CO` (constitución IV).
+- `src/lib/time.ts`: único módulo de zona horaria y formatos `es-CO` (constitución IV); `createZoneConverter` para cálculos masivos.
+- `src/lib/booking/`: reserva pública (agente principal): `availability.ts` (cálculo puro de huecos), `queries.ts`, `book.ts`, `submit.ts` (resuelve la barbería del **Host**, nunca de un dato del navegador), `actions.ts`, `schemas.ts`, `phone.ts`, `messages.ts`.
+- `src/lib/validation.ts`: `toFieldErrors`, conversión única de errores de Zod.
+- `src/app/s/[subdomain]/reservar/` (flujo en 4 pasos guardado en la URL) y `privacidad/` (plantilla pendiente de revisión legal).
+- `src/components/forms/`: campos de formulario compartidos por el panel y la reserva.
 - `src/app/s/[subdomain]/admin/`: panel (`login/` y el grupo `(panel)/` protegido).
 - `scripts/`: herramientas del super admin (`create-barbershop.mts`).
 - `src/components/` (`ui/` es de shadcn), `src/lib/`: utilidades, clientes de Supabase, esquemas Zod compartidos.

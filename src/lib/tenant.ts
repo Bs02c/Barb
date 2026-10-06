@@ -1,6 +1,9 @@
 // Resolución del inquilino (barbería) a partir del host de la petición (ADR-004).
 // Lógica pura, sin acceso a datos: la usa src/proxy.ts y se prueba en tenant.test.ts.
 
+/** Dominio raíz sobre el que se resuelven los subdominios. Lo usan el proxy y las server actions públicas. */
+export const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "localhost:3000";
+
 // Mismas reglas que el check de barbershops.subdomain en la base de datos.
 const SUBDOMAIN_PATTERN = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
 const RESERVED_SUBDOMAINS = new Set(["www", "app", "api", "admin"]);

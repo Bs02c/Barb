@@ -17,6 +17,7 @@ import {
 } from "@/lib/admin/schemas";
 import { createClient } from "@/lib/supabase/server";
 import { localDateTimeToUtc } from "@/lib/time";
+import { toFieldErrors } from "@/lib/validation";
 
 // Server actions del panel. Todas:
 // 1. comprueban la sesión y que el admin pertenece a la barbería del subdominio;
@@ -33,12 +34,7 @@ function parseForm<S extends FieldSchema>(schema: S, formData: FormData) {
 }
 
 function invalid(error: z.ZodError): ActionState {
-  const fieldErrors: Record<string, string[]> = {};
-  for (const issue of error.issues) {
-    const key = String(issue.path[0] ?? "form");
-    (fieldErrors[key] ??= []).push(issue.message);
-  }
-  return { ok: false, message: "Revisa los campos marcados.", fieldErrors };
+  return { ok: false, message: "Revisa los campos marcados.", fieldErrors: toFieldErrors(error) };
 }
 
 // Códigos documentados en specs/001-modelo-datos-rls/contracts/acceso-por-rol.md.
@@ -56,7 +52,7 @@ function fromDatabase(error: PostgrestError): ActionState {
     case "42501":
       return { ok: false, message: "No tienes permiso para hacer esto." };
     default:
-      console.error("Error de base de datos en el panel", error);
+      console.error("Error de base de datos en el panel", { code: error.code, message: error.message });
       return { ok: false, message: "No se pudo guardar. Inténtalo de nuevo." };
   }
 }

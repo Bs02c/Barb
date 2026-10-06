@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDelete } from "@/components/admin/confirm-delete";
-import { FormMessage, SelectField, SubmitButton, TextField } from "@/components/admin/fields";
+import { FormMessage, SelectField, SubmitButton, TextField } from "@/components/forms/fields";
 import { useAdminForm } from "@/components/admin/use-admin-form";
 import type { ActionState } from "@/lib/admin/action-state";
 import { addScheduleSlot, deleteScheduleSlot } from "@/lib/admin/actions";

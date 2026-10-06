@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ConfirmDelete } from "@/components/admin/confirm-delete";
-import { FormMessage, SelectField, SubmitButton, TextField } from "@/components/admin/fields";
+import { FormMessage, SelectField, SubmitButton, TextField } from "@/components/forms/fields";
 import { BarberSelectOptions, type BarberOption } from "@/components/admin/schedule-manager";
 import { useAdminForm } from "@/components/admin/use-admin-form";
 import type { ActionState } from "@/lib/admin/action-state";

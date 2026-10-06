@@ -6,10 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
-import type { ActionState } from "@/lib/admin/action-state";
 import { cn } from "@/lib/utils";
 
-// Piezas comunes de los formularios del panel: etiqueta visible, error por campo asociado con
+// Piezas comunes de los formularios (panel y reserva pública): etiqueta visible, error por campo asociado con
 // aria-describedby, mensaje general tras enviar y botón con estado de envío (DESIGN.md).
 
 function FieldError({ id, messages }: { id: string; messages?: string[] }) {
@@ -101,7 +100,13 @@ export function SelectField({
 }
 
 /** Resultado del último envío: éxito en verde o error en rojo, siempre con icono y texto. */
-export function FormMessage({ state, className }: { state: ActionState | null; className?: string }) {
+export function FormMessage({
+  state,
+  className,
+}: {
+  state: { ok: boolean; message?: string } | null;
+  className?: string;
+}) {
   return (
     <div role="status" aria-live="polite" className={className}>
       {state?.message && (

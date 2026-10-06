@@ -1,6 +1,6 @@
 "use client";
 
-import { FormMessage, SubmitButton, TextField } from "@/components/admin/fields";
+import { FormMessage, SubmitButton, TextField } from "@/components/forms/fields";
 import { useAdminForm } from "@/components/admin/use-admin-form";
 import { signIn } from "@/lib/admin/actions";
 import { loginSchema } from "@/lib/admin/schemas";

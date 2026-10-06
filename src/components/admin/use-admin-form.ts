@@ -3,6 +3,7 @@
 import { startTransition, useActionState, useRef, type FormEvent } from "react";
 import type { z } from "zod";
 import { initialState, type ActionState } from "@/lib/admin/action-state";
+import { toFieldErrors } from "@/lib/validation";
 
 /** Firma común de las server actions del panel (src/lib/admin/actions.ts). */
 export type AdminAction = (subdomain: string, prev: ActionState, formData: FormData) => Promise<ActionState>;
@@ -22,12 +23,7 @@ type Options = {
 function clientErrors(schema: z.ZodType, formData: FormData): ActionState | null {
   const parsed = schema.safeParse(Object.fromEntries(formData));
   if (parsed.success) return null;
-  const fieldErrors: Record<string, string[]> = {};
-  for (const issue of parsed.error.issues) {
-    const key = String(issue.path[0] ?? "form");
-    (fieldErrors[key] ??= []).push(issue.message);
-  }
-  return { ok: false, message: "Revisa los campos marcados.", fieldErrors };
+  return { ok: false, message: "Revisa los campos marcados.", fieldErrors: toFieldErrors(parsed.error) };
 }
 
 /**
