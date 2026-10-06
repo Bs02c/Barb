@@ -33,6 +33,7 @@ Quién puede hacer qué sobre cada tabla. "Propia" significa `barbershop_id = pr
 | Caso | SQLSTATE | Restricción | Mensaje para el usuario |
 |---|---|---|---|
 | Cita solapada | `23P01` | `appointments_no_overlap` | "Ese horario ya no está disponible" |
+| Dos reservas del mismo hueco a la vez | `40P01` (deadlock) | — | Reintentar la inserción una vez; el reintento da `23P01` o se acepta |
 | Tramo de horario solapado | `23P01` | `barber_schedules_no_overlap` | "Ese tramo se cruza con otro del mismo día" |
 | Reactivar una cita cancelada | `23514` | `appointments_status_transition` | "Una cita cancelada no puede reactivarse" |
 | Borrar barbero o servicio con citas | `23503` | `appointments_barber_fkey` / `appointments_service_fkey` | "Tiene citas: desactívalo en lugar de borrarlo" |

@@ -60,6 +60,8 @@ Plataforma multi-tenant donde cada barbería tiene su propio espacio, identifica
 | `npm run db:types` | Regenera `src/lib/database.types.ts` desde la base local; ejecutar tras cada migración |
 | `npm run build` | Compilación de producción |
 
+Si `npm run build` falla con `EPERM ... unlink '.next\...'`, detener cualquier `next start` y borrar `.next` (el proyecto está en OneDrive, que bloquea archivos de esa carpeta).
+
 Antes de dar una tarea por terminada: `lint`, `typecheck`, `test` y, si se tocó la base de datos, `db:types`, `test:db` y `test:integration`.
 
 ## Entornos de base de datos (ADR-014)
@@ -68,7 +70,10 @@ Antes de dar una tarea por terminada: `lint`, `typecheck`, `test` y, si se tocó
 - **Producción** (Supabase nube, con el primer cliente): solo migraciones. Nunca seed, nunca tests, nunca `--linked` con `test db` o `db reset`.
 
 ## Estructura
-- `src/app/`: rutas, páginas y layouts (App Router).
+- `src/proxy.ts`: lo que antes era middleware (Next.js 16). Reescribe `<barberia>.dominio/x` a `/s/<barberia>/x`; las rutas `/s/...` solo se alcanzan por subdominio. La lógica pura está en `src/lib/tenant.ts`.
+- `src/app/s/[subdomain]/`: páginas de cada barbería; comprueban que exista y esté activa (`getPublicBarbershop`) o responden "Barbería no encontrada" (404).
+- `src/app/`: resto de rutas, páginas y layouts (App Router).
+- `src/lib/supabase/service.ts`: cliente con la clave secreta (`server-only`).
 - `src/components/` (`ui/` es de shadcn), `src/lib/`: utilidades, clientes de Supabase, esquemas Zod compartidos.
 - `supabase/migrations/`, `supabase/seed.sql`, `supabase/tests/`: base de datos.
 - `tests/e2e/`: Playwright (desde la fase 4).

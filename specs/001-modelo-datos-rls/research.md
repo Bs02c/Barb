@@ -26,7 +26,7 @@ Decisiones técnicas de la fase 1. Comprobado contra Supabase local (Postgres 17
 ## 4. Citas sin solapamiento
 
 - **Decisión**: restricción de exclusión `exclude using gist (barber_id with =, tstzrange(starts_at, ends_at, '[)') with &&) where (status = 'active')`, con la extensión `btree_gist`. El rango `[)` permite que una cita empiece justo cuando termina otra. El `where` hace que las canceladas no bloqueen.
-- **Concurrencia**: la restricción se apoya en un índice y Postgres la garantiza aunque dos transacciones inserten a la vez: la segunda espera y falla. Como un test pgTAP corre en una sola sesión, la simultaneidad (SC-002) se prueba con un test de integración en Vitest que lanza dos inserciones en paralelo contra la base local.
+- **Concurrencia**: la restricción se apoya en un índice y Postgres la garantiza aunque dos transacciones inserten a la vez: solo una se confirma. Si las dos se solapan de verdad, cada una espera a la otra para comprobar la exclusión y Postgres aborta una con `40P01` (deadlock) en lugar de `23P01` (observado en el test de integración el 2026-10-05). La reserva de la fase 4 debe reintentar una vez ante `40P01`. Como un test pgTAP corre en una sola sesión, la simultaneidad (SC-002) se prueba con un test de integración en Vitest que lanza dos inserciones en paralelo contra la base local.
 - **Alternativa descartada**: comprobar disponibilidad y luego insertar en la aplicación (condición de carrera).
 
 ## 5. Coherencia de cada cita

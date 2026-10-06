@@ -78,6 +78,10 @@ describe("reservas concurrentes del mismo hueco", () => {
 
     expect(accepted).toHaveLength(1);
     expect(rejected).toHaveLength(1);
-    expect(rejected[0].error?.code).toBe("23P01"); // exclusion_violation
+    // 23P01 (exclusion_violation) si la segunda llega cuando la primera ya confirmó.
+    // 40P01 (deadlock_detected) si las dos transacciones se solapan de verdad: cada una
+    // espera a la otra para comprobar la exclusión y Postgres aborta una. La integridad
+    // se mantiene en ambos casos; la reserva (fase 4) reintenta una vez ante 40P01.
+    expect(["23P01", "40P01"]).toContain(rejected[0].error?.code);
   });
 });
