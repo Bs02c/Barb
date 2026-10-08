@@ -43,7 +43,7 @@ Plataforma multi-tenant donde cada barbería tiene su propio espacio, identifica
 - Supabase CLI para desarrollo local y migraciones versionadas
 - Playwright + `@axe-core/playwright` para 3–5 tests E2E y de accesibilidad (ADR-012)
 - Spec Kit para spec-driven development (ver más abajo)
-- Hosting: Vercel durante la fase de pruebas (ver Despliegue)
+- Hosting: VPS propio con Docker Compose y Caddy, desde las pruebas (ADR-016; ya no Vercel)
 
 ## Comandos
 | Comando | Qué hace |
@@ -68,7 +68,7 @@ Antes de dar una tarea por terminada: `lint`, `typecheck`, `test` y, si se tocó
 
 ## Entornos de base de datos (ADR-014)
 - **Local** (Docker): desarrollo y todos los tests; datos de demostración en `supabase/seed.sql`.
-- **Pruebas** (Supabase nube, fase 7): demostración en Vercel; solo datos de demostración.
+- **Pruebas** (Supabase nube, región Frankfurt, fase 7): demostración en el VPS; solo datos de demostración.
 - **Producción** (Supabase nube, con el primer cliente): solo migraciones. Nunca seed, nunca tests, nunca `--linked` con `test db` o `db reset`.
 
 ## Estructura
@@ -115,8 +115,8 @@ Antes de dar una tarea por terminada: `lint`, `typecheck`, `test` y, si se tocó
 - **Código portable:** no usar servicios exclusivos de Vercel (Vercel Cron, KV, Blob, Edge Config). La app debe poder pasar al VPS sin reescribirse.
 
 ## Despliegue
-- **Fase de pruebas:** Vercel (plan Hobby) con dominio comodín `*.midominio.com`. El plan Hobby es solo para uso no comercial: sirve para desarrollar y hacer demos con datos de prueba, no para una barbería que reciba reservas reales ni para una landing que venda el servicio.
-- **Con el primer cliente:** migrar al VPS propio con Docker Compose (`app` + `caddy`) y certificado comodín vía Caddy (ADR-005), o pasar a Vercel Pro si se decide en ese momento (ADR-011).
+- **Desde la fase 7 (ADR-016, 2026-10-08):** VPS propio (Contabo, Alemania, Ubuntu 24 LTS) con Docker Compose (`app` + `caddy`), dominio comprado en Cloudflare y certificado comodín `*.dominio` vía Caddy con desafío DNS de Cloudflare (ADR-005). Sin Vercel (ADR-011 queda superado en este punto).
+- **Con el primer cliente:** el mismo VPS pasa a producción (con proyecto de Supabase de producción).
 - **Antes del primer cliente que pague:** respaldos propios con `pg_dump` y plan de pago de Supabase (el gratuito se pausa tras una semana sin actividad).
 - En desarrollo local, los subdominios se prueban con `*.localhost` (ej. `labarberia.localhost:3000`).
 - Detalle en `Arquitectura/despliegue.md` del vault.
@@ -189,4 +189,4 @@ Vault: C:/Users/Bsrid/OneDrive/Escritorio/Obsidian/Barbería
 5. Si hubo revisión de los agentes, guarda el informe consolidado en `Revisiones/`.
 
 ## Siguiente paso
-Fases 0–6 terminadas. Falta la **fase 7: despliegue de pruebas** (Supabase en la nube, Vercel, dominio comodín, seed propio sin contraseñas conocidas, revisión de los tres agentes). Detalle y cosas a tener presentes en `Plan-de-ejecucion.md` del vault. Repositorio: `https://github.com/Bs02c/Barb.git` (`origin`).
+Fases 0–6 terminadas. Falta la **fase 7: despliegue de pruebas en el VPS propio** (Supabase en la nube en Frankfurt, Docker Compose + Caddy, dominio comodín en Cloudflare, seed propio sin contraseñas conocidas, revisión de los tres agentes). Detalle y cosas a tener presentes en `Plan-de-ejecucion.md` del vault. Repositorio: `https://github.com/Bs02c/Barb.git` (`origin`).
