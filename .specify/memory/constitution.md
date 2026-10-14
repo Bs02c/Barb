@@ -9,21 +9,36 @@
   casos se documenta en el contrato de acceso y en un comentario de la migración, y se prueba.
 - La barbería de una petición DEBE resolverse en el servidor a partir del subdominio. Nunca se
   acepta un `barbershop_id` enviado por el cliente.
-- Todo código que use la service role key (que se salta RLS) DEBE filtrar explícitamente por el
+- Todo código que use el rol `service_role` (que se salta RLS) DEBE filtrar explícitamente por el
   `barbershop_id` resuelto en el servidor.
+- El rol con el que se conecta la app NO es superusuario, NO tiene BYPASSRLS, NO es dueño de ningún
+  objeto y NO tiene privilegios propios. Solo puede cambiar, dentro de una transacción, a
+  `authenticated` (con la identidad del usuario) o a `service_role` (con filtro explícito por
+  `barbershop_id`). La app se niega a arrancar si su rol incumple esto.
+- La identidad del usuario se fija solo dentro de una transacción (`set_config(…, true)` con
+  parámetro), solo a partir de la sesión verificada en el servidor y solo a través de la función
+  única de la capa de datos. Prohibido fijar rol o identidad a nivel de sesión.
+- Los privilegios de cada rol se conceden explícitamente por tabla y operación. Prohibidos
+  `GRANT ALL`, los privilegios por defecto amplios y conceder `TRUNCATE` a los roles de la app.
+- Las tablas del sistema de login viven en un esquema propio, con RLS activado y sin acceso para
+  `authenticated` ni `service_role`.
 - Toda tabla o política nueva DEBE tener un test que demuestre que un usuario de otra barbería no
-  puede leerla ni modificarla.
+  puede leerla ni modificarla. Los tests de aislamiento se ejecutan también con el rol real con el
+  que se conecta la app.
 
 Razón: un fallo de aislamiento expone datos de una barbería a otra; es el peor error posible del
-producto. (ADR-001, ADR-002, ADR-004)
+producto. (ADR-001, ADR-002, ADR-004, ADR-017)
 
 ### II. Secretos solo en el servidor
-- La service role key y cualquier API key (Resend, Cloudflare) NUNCA llegan al navegador: ni en
-  variables `NEXT_PUBLIC_`, ni en módulos importados por componentes de cliente.
+- Las credenciales de la base, el secreto de sesión y cualquier API key (Resend, Cloudflare) NUNCA
+  llegan al navegador: ni en variables `NEXT_PUBLIC_`, ni en módulos importados por componentes de
+  cliente.
+- El entorno del contenedor de la app NUNCA contiene credenciales del superusuario ni del dueño de
+  las tablas.
 - La web pública no usa sesión: toda reserva o cancelación pasa por server actions o route
   handlers.
 
-Razón: la service role key da acceso total a todas las barberías. (ADR-003)
+Razón: el rol `service_role` da acceso total a todas las barberías. (ADR-003, ADR-017)
 
 ### III. La base de datos es la última barrera de integridad
 - Toda regla de negocio que pueda expresarse como restricción de Postgres (no solapar citas de un
@@ -74,14 +89,17 @@ El proyecto también sirve para aprender: el código debe poder entenderse en se
 
 ### VIII. Código portable entre hostings
 - La app NO usa servicios exclusivos de Vercel (Vercel Cron, KV, Blob, Edge Config).
-- Las tareas programadas se hacen en Supabase (`pg_cron`), no en el hosting.
+- Las tareas programadas se ejecutan en nuestra propia infraestructura (PostgreSQL o un servicio del
+  Compose), no en servicios exclusivos de un hosting; el mecanismo concreto se decide en un ADR
+  cuando entren los recordatorios.
 
-Razón: la app pasa de Vercel al VPS con el primer cliente y no debe reescribirse. (ADR-011)
+Razón: la app debe poder cambiar de servidor sin reescribirse. (ADR-016, ADR-017)
 
 ## Límites para el agente
 
 **Siempre (sin pedir permiso)**
-- Crear los cambios de esquema como migraciones versionadas con Supabase CLI.
+- Crear los cambios de esquema como migraciones SQL versionadas (dbmate). El SQL es la única fuente
+  de verdad del esquema.
 - Ejecutar los tests antes de dar una tarea por terminada.
 - Actualizar el vault (Estado actual, Pendientes, ADR) cuando el cambio lo requiera.
 - Informar brevemente al usuario de lo que se hizo al terminar cada tarea.
@@ -99,9 +117,19 @@ Razón: la app pasa de Vercel al VPS con el primer cliente y no debe reescribirs
 **Nunca**
 - Subir secretos o API keys al repositorio.
 - Desactivar RLS en una tabla, aunque sea temporalmente.
-- Usar la service role key en código de cliente.
-- Editar una migración ya aplicada; se crea una nueva.
-- Cambiar el esquema a mano desde la consola de Supabase.
+- Usar credenciales de la base en código de cliente.
+- Editar una migración ya aplicada; se crea una nueva. Excepción única (ADR-017): una sola vez, en el
+  commit que introduce `db/migrations/0001_baseline.sql`, que sustituye a las migraciones de
+  Supabase (aplicadas solo en local). No hay otras excepciones.
+- Cambiar el esquema fuera de una migración SQL: ni a mano (psql, cliente gráfico) ni con
+  generadores (`drizzle-kit generate/push/migrate`, `better-auth migrate`).
+- Conceder a los roles de la app más privilegios de los que usa el código; en particular, ningún
+  privilegio sobre `profiles` para `service_role`.
+- Que los logs del servidor de base de datos registren valores de filas o parámetros (datos
+  personales).
+- Publicar el puerto de PostgreSQL (`ports:`) o usar autenticación `trust`.
+- Compartir un mismo PostgreSQL entre pruebas y producción.
+- Sacar un respaldo del VPS sin cifrar.
 - Cargar datos de demostración o ejecutar tests contra producción. Los tests corren solo en la
   base local y deshacen sus cambios; a producción solo llegan migraciones (ADR-014).
 
@@ -128,8 +156,8 @@ Razón: la app pasa de Vercel al VPS con el primer cliente y no debe reescribirs
 - `CLAUDE.md` describe el contexto y el stack; los ADR del vault explican el porqué de cada
   decisión; esta constitución fija las reglas que no se negocian.
 - Una enmienda la propone el agente o el usuario, la aprueba el usuario, sube la versión (MAJOR:
-  quitar o redefinir un principio; MINOR: añadir uno; PATCH: redacción) y, si es una decisión de
+  quitar o redefinir un principio; MINOR: añadir un principio u obligaciones nuevas a uno existente sin relajarlo; PATCH: redacción) y, si es una decisión de
   arquitectura, se registra como ADR.
 - Los agentes de revisión verifican el cumplimiento de esta constitución en los hitos que revisan.
 
-**Versión**: 1.1.1 | **Ratificada**: 2026-10-04 | **Última enmienda**: 2026-10-04
+**Versión**: 1.2.0 | **Ratificada**: 2026-10-04 | **Última enmienda**: 2026-10-13

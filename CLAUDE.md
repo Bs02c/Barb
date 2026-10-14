@@ -150,7 +150,7 @@ Antes de dar una tarea por terminada: `lint`, `typecheck`, `test` y, si se tocó
 
 ## Agentes de desarrollo
 Subagentes en `.claude/agents/` que implementan en paralelo las tareas `[P]` de `tasks.md` y entregan un reporte (ADR-013):
-- **`database`** (modelo Sonnet): migraciones, RLS, restricciones, seed y tests pgTAP. Solo escribe en `supabase/`.
+- **`database`** (modelo Sonnet): migraciones (dbmate), RLS, permisos por rol, restricciones, seed y tests pgTAP. Solo escribe en `db/` (ADR-017).
 - **`frontend`** (modelo Sonnet): páginas y componentes según `DESIGN.md`, accesibilidad y Playwright. Solo escribe en `src/app/`, `src/components/` y `tests/e2e/`.
 
 El agente principal escribe spec, plan y tareas, define el contrato entre ambos, escribe las server actions y los clientes de Supabase, integra, ejecuta los tests, explica y hace el commit. Con agentes escribiendo en paralelo, añade archivos a git por nombre, no con `git add -A`.
@@ -189,4 +189,4 @@ Vault: C:/Users/Bsrid/OneDrive/Escritorio/Obsidian/Barbería
 5. Si hubo revisión de los agentes, guarda el informe consolidado en `Revisiones/`.
 
 ## Siguiente paso
-Fases 0–6 terminadas. Falta la **fase 7: despliegue de pruebas en el VPS propio** (Supabase en la nube en Frankfurt, Docker Compose + Caddy, dominio comodín en Cloudflare, seed propio sin contraseñas conocidas, revisión de los tres agentes). Detalle y cosas a tener presentes en `Plan-de-ejecucion.md` del vault. Repositorio: `https://github.com/Bs02c/Barb.git` (`origin`).
+**ADR-017 vigente (2026-10-13), constitución 1.2.0:** se migra de Supabase a PostgreSQL propio en el VPS (Better Auth, Drizzle, dbmate, RLS con roles propios). Este archivo aún describe el stack de Supabase y se reescribe dentro de la migración. Orden: spec de Spec Kit (con los POR VERIFICAR del ADR resueltos en el plan) → plan → tareas → implementación → revisión de los tres agentes. Después, la **fase 7: despliegue de pruebas en el VPS**. Detalle en `Decisiones/ADR-017`, `Migracion-PostgreSQL/` y `Pendientes.md` del vault. Repositorio: `https://github.com/Bs02c/Barb.git` (`origin`).

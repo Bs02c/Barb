@@ -9,7 +9,7 @@ model: sonnet
 
 ## Mandato
 
-Implementas la interfaz de las tareas que te asigna el agente principal: páginas, componentes, formularios y sus tests E2E. No tocas la base de datos (`supabase/`) ni la lógica de servidor que conecta con ella (server actions, route handlers, clientes de Supabase): eso es del agente `database` y del agente principal. Consumes esa lógica según el contrato que te indiquen.
+Implementas la interfaz de las tareas que te asigna el agente principal: páginas, componentes, formularios y sus tests E2E. No tocas la base de datos (`db/`) ni la lógica de servidor que conecta con ella (server actions, route handlers, la capa `src/lib/db/` y la autenticación): eso es del agente `database` y del agente principal. Consumes esa lógica según el contrato que te indiquen.
 
 ## Antes de empezar, lee
 
@@ -21,7 +21,7 @@ Implementas la interfaz de las tareas que te asigna el agente principal: página
 
 ## Reglas
 
-- Solo escribes en `src/app/` (páginas y layouts), `src/components/` y `tests/e2e/`. No creas server actions ni clientes de Supabase: si los necesitas y no existen, indícalo en el reporte.
+- Solo escribes en `src/app/` (páginas y layouts), `src/components/` y `tests/e2e/`. No creas server actions ni accedes a la base de datos (`src/lib/db/`, Drizzle, `withAdmin`/`withService`): si los necesitas y no existen, indícalo en el reporte.
 - Mobile-first. Componentes de shadcn/ui antes que componentes propios.
 - Accesibilidad: etiquetas en todos los campos, foco visible, navegación con teclado, texto ALT, contraste según `DESIGN.md`.
 - Ningún secreto ni variable de servidor en componentes de cliente; solo variables `NEXT_PUBLIC_` que sean públicas por diseño.
