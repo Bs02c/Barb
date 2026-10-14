@@ -139,8 +139,21 @@ select is(
 select is_empty($$ select * from pg_hba_file_rules where auth_method = 'trust' $$, 'pg_hba.conf sin ninguna línea trust');
 select is_empty($$ select * from pg_hba_file_rules where error is not null $$, 'pg_hba.conf sin errores');
 select is_empty(
-  $$ select * from pg_hba_file_rules where auth_method not in ('peer', 'scram-sha-256') $$,
-  'pg_hba.conf solo usa peer (postgres local) y scram-sha-256');
+  $$ select * from pg_hba_file_rules where auth_method not in ('peer', 'scram-sha-256', 'reject') $$,
+  'pg_hba.conf solo usa peer (postgres local), scram-sha-256 y reject');
+-- Revisión spec 005, SEC-003: por red nunca "cualquier origen", y el superusuario nunca por red.
+select is_empty(
+  $$ select * from pg_hba_file_rules
+      where type like 'host%' and auth_method <> 'reject' and address in ('0.0.0.0', '::', 'all') $$,
+  'pg_hba.conf no acepta conexiones por red desde cualquier dirección');
+select is_empty(
+  $$ select * from pg_hba_file_rules
+      where type like 'host%' and auth_method <> 'reject' and ('postgres' = any(user_name) or 'all' = any(user_name)) $$,
+  'por red no entra el superusuario ni "all"');
+select is_empty(
+  $$ select * from pg_hba_file_rules
+      where type like 'host%' and auth_method <> 'reject' and not (database = array['barberias']) $$,
+  'por red solo se conecta a la base barberias');
 
 -- ===========================================================================
 -- 5. identity: solo auth_login

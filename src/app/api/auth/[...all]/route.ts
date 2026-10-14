@@ -2,8 +2,8 @@ import { toNextJsHandler } from "better-auth/next-js";
 import { AUTH_ALLOWED_PATHS, getAuth } from "@/lib/auth/auth";
 
 // Better Auth en /api/auth/*. El proxy deja pasar esta ruta solo desde el subdominio de una barbería.
-// Lista blanca: login, cierre de sesión y lectura de la sesión. El resto (registro, recuperar
-// contraseña, cambiar correo, borrar usuario, OAuth…) responde 404 aunque Better Auth lo traiga
+// Lista blanca: solo el login. El resto (registro, recuperar contraseña, cambiar correo, borrar
+// usuario, OAuth, leer o cerrar la sesión…) responde 404 aunque Better Auth lo traiga
 // (spec 005, FR-016). disabledPaths no sirve para rutas con parámetros como /reset-password/:token.
 
 function isAllowed(request: Request): boolean {

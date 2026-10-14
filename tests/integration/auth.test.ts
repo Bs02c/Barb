@@ -1,14 +1,21 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createTestAdmin, deleteBarbershop, deleteUser, insert, query } from "./helpers/db";
 
 // Login con Better Auth (spec 005: historia 2, FR-016 a FR-019; test obligatorio 8 del ADR-017).
-// Se prueba la ruta real de la app (src/app/api/auth/[...all]/route.ts), con su lista blanca.
+// Se prueba la ruta real de la app (src/app/api/auth/[...all]/route.ts), con su lista blanca (solo
+// /sign-in/email). Leer y cerrar la sesión se hace como la app: con auth.api desde el servidor.
+// nextCookies (src/lib/auth/auth.ts) escribe cookies con next/headers: fuera de Next se sustituye.
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
+  cookies: async () => ({ get: () => undefined, getAll: () => [], set: () => {}, delete: () => {} }),
+}));
 // Límite de intentos bajo solo para este archivo: la instancia de Better Auth se crea después.
 const MAX_ATTEMPTS = 3;
 process.env.AUTH_SIGNIN_MAX_ATTEMPTS = String(MAX_ATTEMPTS);
 (globalThis as { __auth?: unknown }).__auth = undefined;
 const { GET, POST } = await import("@/app/api/auth/[...all]/route");
+const { getAuth } = await import("@/lib/auth/auth");
 
 const ROOT = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "localhost:3000";
 let shopId: string;
@@ -41,6 +48,10 @@ function request(path: string, init: { method?: string; body?: unknown; cookie?:
 
 const send = (req: Request) => (req.method === "GET" ? GET(req) : POST(req));
 
+/** Sesión que ve el servidor con esa cookie (como getVerifiedSession), o null. */
+const sessionWith = (cookie: string) =>
+  getAuth().api.getSession({ headers: new Headers({ host: `${subdomain}.${ROOT}`, cookie }) });
+
 /** "nombre=valor" de la cookie de sesión de una respuesta. */
 function sessionCookie(res: Response): string {
   const raw = res.headers.getSetCookie().find((c) => c.includes("session_token"));
@@ -55,7 +66,17 @@ describe("registro y rutas fuera de la lista blanca", () => {
     expect(await query(`select 1 from identity."user" where email = 'nuevo@example.com'`)).toHaveLength(0);
   });
 
-  it.each(["/request-password-reset", "/reset-password/abc", "/update-user", "/delete-user", "/change-email", "/list-sessions", "/callback/google"])(
+  it.each([
+    "/get-session",
+    "/sign-out",
+    "/request-password-reset",
+    "/reset-password/abc",
+    "/update-user",
+    "/delete-user",
+    "/change-email",
+    "/list-sessions",
+    "/callback/google",
+  ])(
     "%s responde 404",
     async (path) => {
       expect((await send(request(path, { body: {} }))).status).toBe(404);
@@ -84,10 +105,21 @@ describe("inicio y cierre de sesión", () => {
   it("tras cerrar sesión, la cookie ya no da sesión", async () => {
     const login = await send(request("/sign-in/email", { body: { email: admin.email, password: admin.password }, ip: "203.0.113.13" }));
     const cookie = sessionCookie(login);
-    expect(await (await send(request("/get-session", { cookie }))).json()).not.toBeNull();
+    expect(await sessionWith(cookie)).not.toBeNull();
 
-    expect((await send(request("/sign-out", { method: "POST", body: {}, cookie }))).status).toBe(200);
-    expect(await (await send(request("/get-session", { cookie }))).json()).toBeNull();
+    await getAuth().api.signOut({ headers: new Headers({ host: `${subdomain}.${ROOT}`, cookie }) });
+    expect(await sessionWith(cookie)).toBeNull();
+  });
+
+  it("la sesión caduca a los 7 días aunque se use: no se renueva sola (SEC-002)", async () => {
+    const login = await send(request("/sign-in/email", { body: { email: admin.email, password: admin.password }, ip: "203.0.113.15" }));
+    const cookie = sessionCookie(login);
+    // Simula una sesión abierta hace 2 días: le quedan 5 (Better Auth la alargaría al usarla).
+    await query(`update identity.session set "expiresAt" = now() + interval '5 days' where "userId" = $1`, [admin.userId]);
+    const [before] = await query<{ expires: Date }>(`select max("expiresAt") as expires from identity.session where "userId" = $1`, [admin.userId]);
+    expect(await sessionWith(cookie)).not.toBeNull();
+    const [after] = await query<{ expires: Date }>(`select max("expiresAt") as expires from identity.session where "userId" = $1`, [admin.userId]);
+    expect(after.expires.getTime()).toBe(before.expires.getTime());
   });
 
   it("si se borra el usuario, su sesión deja de valer (cascada)", async () => {
@@ -95,7 +127,7 @@ describe("inicio y cierre de sesión", () => {
     const login = await send(request("/sign-in/email", { body: { email: other.email, password: other.password }, ip: "203.0.113.14" }));
     const cookie = sessionCookie(login);
     await deleteUser(other.userId);
-    expect(await (await send(request("/get-session", { cookie }))).json()).toBeNull();
+    expect(await sessionWith(cookie)).toBeNull();
   });
 });
 

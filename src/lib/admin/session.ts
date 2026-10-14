@@ -45,6 +45,9 @@ export const getAdminContext = cache(async (subdomain: string): Promise<AdminCon
       })
       .from(profiles)
       .leftJoin(barbershops, eq(barbershops.id, profiles.barbershopId))
+      // Filtro explícito por el usuario: el super admin ve TODOS los perfiles por RLS, y sin esto
+      // la decisión dependería de qué fila sale primero (revisión spec 005, SEC-005).
+      .where(eq(profiles.userId, session.userId))
       .limit(1),
   );
   if (!row || row.role !== "admin" || !row.barbershopId) return { status: "forbidden" };

@@ -1,9 +1,9 @@
 import "server-only";
-import { and, asc, eq, gt, gte, inArray, lt } from "drizzle-orm";
+import { and, asc, eq, exists, gt, gte, inArray, lt } from "drizzle-orm";
 import { cache } from "react";
 import type { PublicBarbershop } from "@/lib/barbershops";
 import { withService } from "@/lib/db/client";
-import { appointments, barberBlocks, barberSchedules, barbers, services } from "@/lib/db/schema";
+import { appointments, barberBlocks, barberSchedules, barbers, barbershops, services } from "@/lib/db/schema";
 import { addDaysToLocalDate, formatLocalDate, formatPrice, localDateTimeToUtc, toLocalDate } from "@/lib/time";
 import { computeAvailableSlots, HORIZON_DAYS, type AvailableSlot } from "./availability";
 import { EARLIEST } from "./schemas";
@@ -11,6 +11,9 @@ import { EARLIEST } from "./schemas";
 // Lecturas de la reserva pública con service_role, que se salta RLS (el cliente no tiene sesión).
 // Constitución I: TODA consulta filtra por barbershop.id, que viene de getPublicBarbershop(subdomain);
 // nunca de un parámetro del cliente. Los ids de servicio y barbero se buscan dentro de esa barbería.
+
+/** Tope defensivo de las listas del catálogo: ya no existe el max_rows de PostgREST (PERF-007). */
+const LIST_LIMIT = 200;
 
 export type CatalogService = { id: string; name: string; durationMinutes: number; price: number; priceLabel: string };
 export type CatalogBarber = { id: string; name: string };
@@ -21,31 +24,36 @@ export type CatalogBarber = { id: string; name: string };
  * con el mismo objeto barbershop (también cacheado por petición).
  */
 export const getBookingCatalog = cache(async (barbershop: PublicBarbershop) => {
-  // Tres lecturas en paralelo, cada una en su transacción corta (misma latencia que antes; research §9).
-  const [serviceRows, barberRows, scheduleRows] = await Promise.all([
-    withService((tx) =>
-      tx
-        .select({ id: services.id, name: services.name, durationMinutes: services.durationMinutes, price: services.price })
-        .from(services)
-        .where(and(eq(services.barbershopId, barbershop.id), eq(services.isActive, true)))
-        .orderBy(asc(services.name)),
-    ),
-    withService((tx) =>
-      tx
-        .select({ id: barbers.id, name: barbers.name })
-        .from(barbers)
-        .where(and(eq(barbers.barbershopId, barbershop.id), eq(barbers.isActive, true)))
-        .orderBy(asc(barbers.name)),
-    ),
-    withService((tx) =>
-      tx
-        .select({ barberId: barberSchedules.barberId })
-        .from(barberSchedules)
-        .where(eq(barberSchedules.barbershopId, barbershop.id)),
-    ),
-  ]);
-
-  const activeBarberIds = new Set(barberRows.map((b) => b.id));
+  // Una sola transacción (una conexión del pool) con las tres lecturas en serie: abrir una por lectura
+  // ocupaba 3 conexiones por petición de un pool de 10 (revisión spec 005, PERF-001).
+  const { serviceRows, barberRows, hasSchedule } = await withService(async (tx) => {
+    const serviceRows = await tx
+      .select({ id: services.id, name: services.name, durationMinutes: services.durationMinutes, price: services.price })
+      .from(services)
+      .where(and(eq(services.barbershopId, barbershop.id), eq(services.isActive, true)))
+      .orderBy(asc(services.name))
+      .limit(LIST_LIMIT);
+    const barberRows = await tx
+      .select({ id: barbers.id, name: barbers.name })
+      .from(barbers)
+      .where(and(eq(barbers.barbershopId, barbershop.id), eq(barbers.isActive, true)))
+      .orderBy(asc(barbers.name))
+      .limit(LIST_LIMIT);
+    // ¿Algún barbero ACTIVO tiene horario? Con EXISTS, sin bajar todas las filas (PERF-006).
+    const [{ hasSchedule }] = await tx
+      .select({
+        hasSchedule: exists(
+          tx
+            .select({ one: barberSchedules.id })
+            .from(barberSchedules)
+            .innerJoin(barbers, eq(barbers.id, barberSchedules.barberId))
+            .where(and(eq(barberSchedules.barbershopId, barbershop.id), eq(barbers.isActive, true))),
+        ).mapWith(Boolean),
+      })
+      .from(barbershops)
+      .where(eq(barbershops.id, barbershop.id));
+    return { serviceRows, barberRows, hasSchedule };
+  });
 
   return {
     services: serviceRows.map(
@@ -59,7 +67,7 @@ export const getBookingCatalog = cache(async (barbershop: PublicBarbershop) => {
     ),
     barbers: barberRows satisfies CatalogBarber[],
     /** Única regla de "se puede reservar": servicios activos y algún barbero activo con horario (MAINT-001). */
-    bookable: serviceRows.length > 0 && scheduleRows.some((s) => activeBarberIds.has(s.barberId)),
+    bookable: serviceRows.length > 0 && hasSchedule,
   };
 });
 
@@ -101,47 +109,43 @@ export async function loadSlots(
   // recorrer solo la ventana y no todo el histórico (revisión fase 4, PERF-003).
   const appointmentsFrom = new Date(windowStart.getTime() - 480 * 60_000);
 
-  const [scheduleRows, blockRows, appointmentRows] = await Promise.all([
-    withService((tx) =>
-      tx
-        .select({
-          barberId: barberSchedules.barberId,
-          weekday: barberSchedules.weekday,
-          startTime: barberSchedules.startTime,
-          endTime: barberSchedules.endTime,
-        })
-        .from(barberSchedules)
-        .where(and(eq(barberSchedules.barbershopId, barbershop.id), inArray(barberSchedules.barberId, barberIds))),
-    ),
-    withService((tx) =>
-      tx
-        .select({ barberId: barberBlocks.barberId, startsAt: barberBlocks.startsAt, endsAt: barberBlocks.endsAt })
-        .from(barberBlocks)
-        .where(
-          and(
-            eq(barberBlocks.barbershopId, barbershop.id),
-            inArray(barberBlocks.barberId, barberIds),
-            lt(barberBlocks.startsAt, windowEnd),
-            gt(barberBlocks.endsAt, windowStart),
-          ),
+  // Una sola transacción con las tres lecturas en serie (revisión spec 005, PERF-001).
+  const { scheduleRows, blockRows, appointmentRows } = await withService(async (tx) => {
+    const scheduleRows = await tx
+      .select({
+        barberId: barberSchedules.barberId,
+        weekday: barberSchedules.weekday,
+        startTime: barberSchedules.startTime,
+        endTime: barberSchedules.endTime,
+      })
+      .from(barberSchedules)
+      .where(and(eq(barberSchedules.barbershopId, barbershop.id), inArray(barberSchedules.barberId, barberIds)));
+    const blockRows = await tx
+      .select({ barberId: barberBlocks.barberId, startsAt: barberBlocks.startsAt, endsAt: barberBlocks.endsAt })
+      .from(barberBlocks)
+      .where(
+        and(
+          eq(barberBlocks.barbershopId, barbershop.id),
+          inArray(barberBlocks.barberId, barberIds),
+          lt(barberBlocks.startsAt, windowEnd),
+          gt(barberBlocks.endsAt, windowStart),
         ),
-    ),
-    withService((tx) =>
-      tx
-        .select({ barberId: appointments.barberId, startsAt: appointments.startsAt, endsAt: appointments.endsAt })
-        .from(appointments)
-        .where(
-          and(
-            eq(appointments.barbershopId, barbershop.id),
-            eq(appointments.status, "active"),
-            inArray(appointments.barberId, barberIds),
-            gte(appointments.startsAt, appointmentsFrom),
-            lt(appointments.startsAt, windowEnd),
-            gt(appointments.endsAt, windowStart),
-          ),
+      );
+    const appointmentRows = await tx
+      .select({ barberId: appointments.barberId, startsAt: appointments.startsAt, endsAt: appointments.endsAt })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.barbershopId, barbershop.id),
+          eq(appointments.status, "active"),
+          inArray(appointments.barberId, barberIds),
+          gte(appointments.startsAt, appointmentsFrom),
+          lt(appointments.startsAt, windowEnd),
+          gt(appointments.endsAt, windowStart),
         ),
-    ),
-  ]);
+      );
+    return { scheduleRows, blockRows, appointmentRows };
+  });
 
   const toRange = (r: { startsAt: Date; endsAt: Date }) => ({ start: r.startsAt, end: r.endsAt });
 
@@ -162,7 +166,7 @@ export type DaySlot = AvailableSlot & { barberName: string };
 
 /**
  * Disponibilidad del paso 3 y 4 en una sola pasada (revisión fase 4, PERF-002): un loadSlots de
- * 30 días (3 consultas) del que salen los días y las horas de cada día. Null si la selección no es
+ * 30 días (una transacción) del que salen los días y las horas de cada día. Null si la selección no es
  * válida. `cache` evita repetirlo si se pide dos veces en la misma petición.
  */
 export const getAvailability = cache(

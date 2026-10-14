@@ -65,15 +65,19 @@ describe("scripts/create-barbershop.mts", () => {
     expect(await query(`select 1 from identity."user" where email = $1`, [otherEmail])).toHaveLength(0);
   });
 
-  it("se niega a escribir en un destino no local sin --confirm-remote", async () => {
+  it("se niega a escribir en una base sin la marca local aunque sea 127.0.0.1 (túnel SSH al VPS)", async () => {
+    // Misma base local, pero la conexión sobrescribe app.env: es lo que vería un túnel a otra base.
+    const tunnel = new URL(process.env.DATABASE_OWNER_URL!);
+    tunnel.searchParams.set("options", "-c app.env=remoto");
     const result = await run(
       process.execPath,
-      ["scripts/create-barbershop.mts", "--name", "X", "--subdomain", "x", "--admin-email", "x@example.com"],
-      { env: { ...process.env, DATABASE_OWNER_URL: "postgres://db_owner:x@db.example.com:5432/barberias" } },
+      ["scripts/create-barbershop.mts", "--name", "X", "--subdomain", `x-${suffix}`, "--admin-email", `x-${suffix}@example.com`],
+      { env: { ...process.env, DATABASE_OWNER_URL: tunnel.toString() } },
     ).then(
       () => ({ err: "" }),
       (e: { stderr: string }) => ({ err: e.stderr }),
     );
     expect(result.err).toContain("El destino es remoto");
+    expect(await query("select 1 from public.barbershops where subdomain = $1", [`x-${suffix}`])).toHaveLength(0);
   });
 });

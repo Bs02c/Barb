@@ -14,6 +14,7 @@ import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { hashPassword } from "better-auth/crypto";
 import pg from "pg";
+import { insertAdminUser } from "./lib/admin-user.ts";
 
 const { values } = parseArgs({
   options: {
@@ -43,19 +44,22 @@ const url = fileVar ? readFileSync(fileVar, "utf8").trim() : process.env.DATABAS
 if (!url) fail("Falta DATABASE_OWNER_URL (o DATABASE_OWNER_URL_FILE).");
 
 const host = new URL(url).hostname;
-const isLocal = host === "127.0.0.1" || host === "localhost";
-if (!isLocal && !values["confirm-remote"]) {
-  fail(`El destino es remoto (${host}). Repite con --confirm-remote si de verdad quieres crearla ahí.`);
-}
 
 // 18 bytes → 24 caracteres base64url: supera de sobra el mínimo de Better Auth (8).
 const password = randomBytes(18).toString("base64url");
 const passwordHash = await hashPassword(password);
 
-console.log(`Destino: ${host}${isLocal ? " (local)" : " (REMOTO)"}`);
-
 const client = new pg.Client({ connectionString: url });
 await client.connect();
+// Local = la base tiene la marca app.env = 'local' (db/init/roles.sh), no la IP: un túnel SSH a la
+// base del VPS también es 127.0.0.1 (revisión spec 005, SEC-004). Todo lo demás es remoto.
+const marker = await client.query<{ env: string | null }>("select current_setting('app.env', true) as env");
+const isLocal = marker.rows[0].env === "local";
+if (!isLocal && !values["confirm-remote"]) {
+  await client.end();
+  fail(`El destino es remoto (${host}, sin la marca de base local). Repite con --confirm-remote si de verdad quieres crearla ahí.`);
+}
+console.log(`Destino: ${host}${isLocal ? " (local)" : " (REMOTO)"}`);
 try {
   await client.query("begin");
 
@@ -65,22 +69,8 @@ try {
     [name, subdomain, timezone],
   );
 
-  // 2. Usuario y cuenta con contraseña de Better Auth (sin registro público: solo se crea así).
-  const user = await client.query<{ id: string }>(
-    `insert into identity."user" (name, email, "emailVerified") values ($1, $1, true) returning id`,
-    [email],
-  );
-  const userId = user.rows[0].id;
-  await client.query(
-    `insert into identity.account ("accountId", "providerId", "userId", password) values ($1::text, 'credential', $1::uuid, $2)`,
-    [userId, passwordHash],
-  );
-
-  // 3. Perfil que lo une a su barbería con rol admin.
-  await client.query("insert into public.profiles (user_id, role, barbershop_id) values ($1, 'admin', $2)", [
-    userId,
-    shop.rows[0].id,
-  ]);
+  // 2 y 3. Usuario de Better Auth con contraseña y perfil de admin (sin registro público: solo se crea así).
+  await insertAdminUser(client, { email, passwordHash, barbershopId: shop.rows[0].id });
 
   await client.query("commit");
 } catch (error) {

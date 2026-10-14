@@ -10,6 +10,9 @@ import { appointments, barberBlocks, barberSchedules, barbers, services } from "
 // barbershop_id en el código a propósito: ADR-017, riesgo aceptado y cubierto por tests).
 // Llamar solo después de comprobar getAdminContext(...).status === "ok".
 
+/** Tope defensivo de las listas del panel: ya no existe el max_rows de PostgREST (revisión spec 005, PERF-007). */
+const LIST_LIMIT = 500;
+
 export type Barber = { id: string; name: string; is_active: boolean };
 export type Service = { id: string; name: string; duration_minutes: number; price: number; is_active: boolean };
 export type ScheduleSlot = { id: string; barber_id: string; weekday: number; start_time: string; end_time: string };
@@ -27,7 +30,8 @@ export async function listBarbers(): Promise<Barber[]> {
     tx
       .select({ id: barbers.id, name: barbers.name, is_active: barbers.isActive })
       .from(barbers)
-      .orderBy(desc(barbers.isActive), asc(barbers.name)),
+      .orderBy(desc(barbers.isActive), asc(barbers.name))
+      .limit(LIST_LIMIT),
   );
 }
 
@@ -42,7 +46,8 @@ export async function listServices(): Promise<Service[]> {
         is_active: services.isActive,
       })
       .from(services)
-      .orderBy(desc(services.isActive), asc(services.name)),
+      .orderBy(desc(services.isActive), asc(services.name))
+      .limit(LIST_LIMIT),
   );
   return rows.map((s) => ({ ...s, price: Number(s.price) })); // numeric llega como texto
 }
@@ -59,7 +64,8 @@ export async function listScheduleSlots(): Promise<ScheduleSlot[]> {
         end_time: barberSchedules.endTime,
       })
       .from(barberSchedules)
-      .orderBy(asc(barberSchedules.barberId), asc(barberSchedules.weekday), asc(barberSchedules.startTime)),
+      .orderBy(asc(barberSchedules.barberId), asc(barberSchedules.weekday), asc(barberSchedules.startTime))
+      .limit(LIST_LIMIT),
   );
 }
 
@@ -76,7 +82,8 @@ export async function listUpcomingBlocks(): Promise<Block[]> {
       })
       .from(barberBlocks)
       .where(gte(barberBlocks.endsAt, new Date()))
-      .orderBy(asc(barberBlocks.startsAt)),
+      .orderBy(asc(barberBlocks.startsAt))
+      .limit(LIST_LIMIT),
   );
   return rows.map((b) => ({ ...b, starts_at: b.starts_at.toISOString(), ends_at: b.ends_at.toISOString() }));
 }
@@ -125,7 +132,7 @@ export async function listAppointmentsForDay(
         ),
       )
       .orderBy(asc(appointments.startsAt))
-      .limit(500), // tope defensivo: un día de una barbería no llega ni de lejos (sin max_rows de PostgREST)
+      .limit(LIST_LIMIT), // un día de una barbería no llega ni de lejos
   );
 
   return rows

@@ -19,5 +19,6 @@ export type VerifiedSession = { readonly userId: string; readonly email: string;
 export const getVerifiedSession = cache(async (): Promise<VerifiedSession | null> => {
   const result = await getAuth().api.getSession({ headers: await headers() });
   if (!result) return null;
+  // Único cast permitido a VerifiedSession (ESLint lo prohíbe en el resto de src/).
   return { userId: result.user.id, email: result.user.email } as VerifiedSession;
 });

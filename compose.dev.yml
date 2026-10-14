@@ -10,6 +10,8 @@ services:
     environment:
       POSTGRES_DB: barberias
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      # Marca la base como LOCAL (db/init/roles.sh): tests, seed y scripts solo escriben donde existe.
+      BARBERIAS_ENV: local
     command:
       - postgres
       - -c
@@ -29,6 +31,7 @@ services:
     # corre en el host. En un servidor la base NUNCA publica puerto.
     ports:
       - "127.0.0.1:54329:5432"
+    networks: [db]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d barberias"]
       interval: 2s
@@ -43,6 +46,7 @@ services:
       db:
         condition: service_healthy
     secrets: [db_owner_password]
+    networks: [db]
     environment:
       DBMATE_MIGRATIONS_DIR: /db/migrations
       DBMATE_NO_DUMP_SCHEMA: "true"
@@ -59,6 +63,13 @@ services:
 
 volumes:
   db-data:
+
+# Subred fija: db/pg_hba.conf solo acepta conexiones por red desde aquí (revisión spec 005, SEC-003).
+networks:
+  db:
+    ipam:
+      config:
+        - subnet: 172.30.54.0/24
 
 secrets:
   postgres_password:

@@ -38,6 +38,23 @@ let shopA: Shop;
 let shopB: Shop;
 let adminA: { userId: string };
 let adminB: { userId: string };
+let superAdmin: { userId: string };
+let shopACookieHeaders: Headers;
+let superCookie: string;
+
+/** Inicia sesión por la ruta real de Better Auth en el subdominio de A y devuelve la cookie. */
+async function loginOnA(email: string, password: string): Promise<string> {
+  const host = `${shopA.subdomain}.${ROOT}`;
+  const res = await POST(
+    new Request(`http://${host}/api/auth/sign-in/email`, {
+      method: "POST",
+      headers: { host, origin: `http://${host}`, "content-type": "application/json", "x-real-ip": "203.0.113.200" },
+      body: JSON.stringify({ email, password }),
+    }),
+  );
+  if (res.status !== 200) throw new Error(`login falló: ${res.status}`);
+  return res.headers.getSetCookie().find((c) => c.includes("session_token"))!.split(";")[0];
+}
 
 function form(fields: Record<string, string>) {
   const data = new FormData();
@@ -92,23 +109,23 @@ beforeAll(async () => {
     })
   ).id;
 
+  // Super admin: ve todos los perfiles y barberías por RLS, pero no tiene panel (SEC-005).
+  const superEmail = `super-${suffix}@example.com`;
+  const superCredentials = await createTestAdmin(shopA.id, superEmail);
+  await query("update public.profiles set role = 'super_admin', barbershop_id = null where user_id = $1", [superCredentials.userId]);
+  superAdmin = superCredentials;
+
   // Sesión REAL de A: login por la ruta de Better Auth en el subdominio de A.
   const host = `${shopA.subdomain}.${ROOT}`;
-  const res = await POST(
-    new Request(`http://${host}/api/auth/sign-in/email`, {
-      method: "POST",
-      headers: { host, origin: `http://${host}`, "content-type": "application/json", "x-real-ip": "203.0.113.200" },
-      body: JSON.stringify({ email: emailA, password: credentialsA.password }),
-    }),
-  );
-  if (res.status !== 200) throw new Error(`login de A falló: ${res.status}`);
-  const cookie = res.headers.getSetCookie().find((c) => c.includes("session_token"))!.split(";")[0];
-  requestHeaders = new Headers({ host, cookie });
+  shopACookieHeaders = new Headers({ host, cookie: await loginOnA(emailA, credentialsA.password) });
+  requestHeaders = shopACookieHeaders;
+  superCookie = await loginOnA(superEmail, superCredentials.password);
 });
 
 afterAll(async () => {
   await deleteUser(adminA?.userId);
   await deleteUser(adminB?.userId);
+  await deleteUser(superAdmin?.userId);
   await deleteBarbershop(shopA?.id);
   await deleteBarbershop(shopB?.id);
 });
@@ -117,6 +134,16 @@ describe("admin de A con ids de B (las 15 operaciones del panel)", () => {
   it("1–2. getAdminContext: A entra en su panel y no en el de B", async () => {
     expect((await getAdminContext(shopA.subdomain)).status).toBe("ok");
     expect((await getAdminContext(shopB.subdomain)).status).toBe("forbidden");
+  });
+
+  it("1–2. el super admin (que ve todos los perfiles por RLS) no entra en ningún panel", async () => {
+    requestHeaders = new Headers({ host: `${shopA.subdomain}.${ROOT}`, cookie: superCookie });
+    try {
+      expect((await getAdminContext(shopA.subdomain)).status).toBe("forbidden");
+      expect((await getAdminContext(shopB.subdomain)).status).toBe("forbidden");
+    } finally {
+      requestHeaders = shopACookieHeaders;
+    }
   });
 
   it("3–6. las lecturas del panel solo devuelven datos de A", async () => {

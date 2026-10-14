@@ -7,7 +7,8 @@ import { boolean, customType, integer, numeric, pgEnum, pgTable, smallint, text,
 // y tipos para que las consultas estén tipadas: sin FK, check, índices ni políticas, a propósito.
 // tests/integration/schema-drift.test.ts falla si una columna difiere de la base (nombre, tipo, nulabilidad).
 // Los `.default…()` solo marcan qué columnas tienen DEFAULT en SQL (las vuelve opcionales al insertar);
-// el valor real lo pone la base. El test de deriva comprueba también que coincidan.
+// el valor real lo pone la base. El test de deriva comprueba que existan DEFAULT en las mismas columnas
+// (no su valor) y que los enums tengan los mismos valores.
 // Tras cada migración que toque estas tablas, actualizar este archivo y pasar ese test.
 
 /** `bytea` como Buffer (hash SHA-256 del token de cancelación). */

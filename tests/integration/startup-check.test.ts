@@ -1,5 +1,6 @@
 import pg from "pg";
 import { afterAll, describe, expect, it } from "vitest";
+import { ownerDb } from "./helpers/db";
 
 // Comprobación de roles al arrancar (spec 005, FR-014 y SC-006) contra el catálogo real de la base:
 // con app_login pasa; con el dueño de las tablas (db_owner), la app se negaría a arrancar.
@@ -31,6 +32,16 @@ describe("assertSafeRoles", () => {
   it("rechaza que la app se conecte como db_owner (dueño de las tablas: RLS no le aplica)", async () => {
     usePools(process.env.DATABASE_OWNER_URL, process.env.AUTH_DATABASE_URL);
     await expect(assertSafeRoles()).rejects.toThrow(/debe ser "app_login".*dueño de objetos/);
+  });
+
+  it("rechaza que app_login tenga un privilegio propio (p. ej. un GRANT a mano en el servidor)", async () => {
+    usePools(process.env.DATABASE_URL, process.env.AUTH_DATABASE_URL);
+    await ownerDb.query("grant select on public.barbers to app_login");
+    try {
+      await expect(assertSafeRoles()).rejects.toThrow(/privilegios propios/);
+    } finally {
+      await ownerDb.query("revoke select on public.barbers from app_login");
+    }
   });
 
   it("rechaza que Better Auth use la conexión de la app", async () => {

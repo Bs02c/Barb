@@ -26,6 +26,9 @@ psql -v ON_ERROR_STOP=1 --no-psqlrc -U postgres -d "$DB" \
   -v f_app="$(secret_file app_login)" \
   -v f_auth="$(secret_file auth_login)" \
   -v f_backup="$(secret_file db_backup)" <<'SQL'
+-- pg_stat_statements está precargado: sin esto, los ALTER ROLE … PASSWORD de abajo podrían quedar
+-- registrados con la contraseña en sus estadísticas (revisión spec 005, SEC-006).
+set pg_stat_statements.track_utility = off;
 -- Contraseñas: leídas del archivo, nunca visibles en este texto.
 \set pw_owner `cat :f_owner`
 \set pw_app `cat :f_app`
@@ -86,3 +89,10 @@ select format('alter database %I owner to db_owner', current_database()) \gexec
 create schema if not exists extensions authorization db_owner;
 create extension if not exists pg_stat_statements with schema extensions;
 SQL
+
+# 7. Marca de base LOCAL (revisión spec 005, SEC-004). Solo compose.dev.yml pone BARBERIAS_ENV=local.
+# Los tests, el seed y los scripts comprueban app.env = 'local' en su propia conexión, no la IP: un
+# túnel SSH a la base del VPS también es 127.0.0.1. En el VPS esta variable NO se define.
+if [ "${BARBERIAS_ENV:-}" = "local" ]; then
+  psql -v ON_ERROR_STOP=1 --no-psqlrc -U postgres -d "$DB" -c "alter database \"$DB\" set app.env = 'local'"
+fi

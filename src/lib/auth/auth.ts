@@ -13,8 +13,12 @@ import { ROOT_DOMAIN } from "@/lib/tenant";
 const isLocal = ROOT_DOMAIN.startsWith("localhost") || ROOT_DOMAIN.includes(".localhost");
 const protocol = isLocal ? "http" : "https";
 
-/** Caminos de /api/auth que la app usa; el resto responde 404 (route.ts). */
-export const AUTH_ALLOWED_PATHS = ["/sign-in/email", "/sign-out", "/get-session"] as const;
+/**
+ * Caminos de /api/auth que la app usa; el resto responde 404 (route.ts). Solo el login: cerrar sesión y
+ * leer la sesión se hacen desde el servidor con auth.api (/get-session devolvería el token en el JSON;
+ * revisión spec 005, SEC-007).
+ */
+export const AUTH_ALLOWED_PATHS = ["/sign-in/email"] as const;
 
 function authSecret(): string {
   const secret = readSecretEnv("BETTER_AUTH_SECRET");
@@ -37,7 +41,10 @@ function createAuth() {
     baseURL: { allowedHosts: [`*.${ROOT_DOMAIN}`], protocol },
     trustedOrigins: [`${protocol}://*.${ROOT_DOMAIN}`],
     emailAndPassword: { enabled: true, disableSignUp: true },
-    session: { expiresIn: 60 * 60 * 24 * 7 }, // 7 días; sin renovación automática (research §2)
+    // 7 días y caducidad REAL: sin renovación automática al usarla (por defecto Better Auth la alarga
+    // cada día de uso). Es la condición con la que se aceptó guardar el token en claro (research §2;
+    // revisión spec 005, SEC-002 y SEC-009).
+    session: { expiresIn: 60 * 60 * 24 * 7, disableSessionRefresh: true },
     rateLimit: {
       enabled: true,
       storage: "database", // tabla identity."rateLimit": vale con varias instancias y tras reiniciar

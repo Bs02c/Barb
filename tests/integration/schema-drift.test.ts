@@ -6,7 +6,7 @@ import { query } from "./helpers/db";
 
 // src/lib/db/schema.ts está escrito a mano (ADR-017, enmienda 1): este test garantiza que coincide con
 // la base real, creada solo por db/migrations/. Compara, en ambos sentidos, cada columna: nombre, tipo,
-// NOT NULL y si tiene DEFAULT (spec 005, T023).
+// NOT NULL y si tiene DEFAULT (no su valor), y los valores de los enums (spec 005, T023; revisión MAINT-005).
 
 type Column = { type: string; notNull: boolean; hasDefault: boolean };
 
@@ -40,7 +40,16 @@ function schemaColumns(table: PgTable): Record<string, Column> {
   );
 }
 
+const enums: { enumName: string; enumValues: readonly string[] }[] = [schema.userRole, schema.appointmentStatus];
+
 describe("src/lib/db/schema.ts coincide con la base", () => {
+  it.each(enums.map((e) => [e.enumName, e] as const))("enum %s: mismos valores y en el mismo orden", async (name, pgEnum) => {
+    const rows = await query<{ value: string }>(
+      "select unnest(enum_range(null::public." + name + "))::text as value",
+    );
+    expect(pgEnum.enumValues).toEqual(rows.map((r) => r.value));
+  });
+
   it("describe las 7 tablas de negocio", () => {
     expect(tables.map((t) => getTableConfig(t).name).sort()).toEqual([
       "appointments",
