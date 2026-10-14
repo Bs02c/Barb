@@ -131,7 +131,7 @@ export function EmptyState({ message, action }: { message: string; action?: { hr
       {action && (
         <Link
           href={action.href}
-          className={cn("w-fit rounded-sm font-medium text-selection underline underline-offset-4", focusRing)}
+          className={cn("w-fit rounded-sm font-medium text-link underline underline-offset-4", focusRing)}
         >
           {action.label}
         </Link>

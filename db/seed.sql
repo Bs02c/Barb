@@ -44,9 +44,11 @@ where u.id in (
 -- ---------------------------------------------------------------------------
 -- Barberías
 -- ---------------------------------------------------------------------------
-insert into public.barbershops (id, name, subdomain, timezone) values
-  ('11111111-1111-4111-8111-111111111111', 'La Barbería', 'labarberia', 'America/Bogota'),
-  ('22222222-2222-4222-8222-222222222222', 'El Corte', 'elcorte', 'America/Bogota');
+-- "La Barbería" con portada completa; "El Corte" sin descripción ni dirección (portada sin esas líneas).
+insert into public.barbershops (id, name, subdomain, timezone, description, address) values
+  ('11111111-1111-4111-8111-111111111111', 'La Barbería', 'labarberia', 'America/Bogota',
+   'Cortes clásicos y barba con navaja, sin afanes.', 'Calle 45 # 12-30, Bogotá'),
+  ('22222222-2222-4222-8222-222222222222', 'El Corte', 'elcorte', 'America/Bogota', null, null);
 
 insert into public.profiles (user_id, role, barbershop_id) values
   ('00000000-0000-4000-8000-000000000001', 'super_admin', null),
@@ -65,13 +67,16 @@ insert into public.barbers (id, barbershop_id, name) values
 -- ---------------------------------------------------------------------------
 -- Servicios (3 por barbería, precios en COP)
 -- ---------------------------------------------------------------------------
-insert into public.services (id, barbershop_id, name, duration_minutes, price) values
-  ('11111111-0000-4000-8000-0000000000c1', '11111111-1111-4111-8111-111111111111', 'Corte clásico', 30, 25000),
-  ('11111111-0000-4000-8000-0000000000c2', '11111111-1111-4111-8111-111111111111', 'Barba', 20, 15000),
-  ('11111111-0000-4000-8000-0000000000c3', '11111111-1111-4111-8111-111111111111', 'Corte y barba', 50, 35000),
-  ('22222222-0000-4000-8000-0000000000c1', '22222222-2222-4222-8222-222222222222', 'Corte', 30, 22000),
-  ('22222222-0000-4000-8000-0000000000c2', '22222222-2222-4222-8222-222222222222', 'Perfilado de barba', 15, 12000),
-  ('22222222-0000-4000-8000-0000000000c3', '22222222-2222-4222-8222-222222222222', 'Corte infantil', 25, 18000);
+insert into public.services (id, barbershop_id, name, duration_minutes, price, description) values
+  ('11111111-0000-4000-8000-0000000000c1', '11111111-1111-4111-8111-111111111111', 'Corte clásico', 30, 25000,
+   'Tijera y máquina, acabado limpio con lavado incluido.'),
+  ('11111111-0000-4000-8000-0000000000c2', '11111111-1111-4111-8111-111111111111', 'Barba', 20, 15000,
+   'Perfilado y afeitado con navaja y toalla caliente.'),
+  ('11111111-0000-4000-8000-0000000000c3', '11111111-1111-4111-8111-111111111111', 'Corte y barba', 50, 35000,
+   'El corte clásico más el arreglo de barba, en una sola cita.'),
+  ('22222222-0000-4000-8000-0000000000c1', '22222222-2222-4222-8222-222222222222', 'Corte', 30, 22000, null),
+  ('22222222-0000-4000-8000-0000000000c2', '22222222-2222-4222-8222-222222222222', 'Perfilado de barba', 15, 12000, null),
+  ('22222222-0000-4000-8000-0000000000c3', '22222222-2222-4222-8222-222222222222', 'Corte infantil', 25, 18000, null);
 
 -- ---------------------------------------------------------------------------
 -- Horario semanal: lunes (1) a sábado (6), dos tramos en hora local

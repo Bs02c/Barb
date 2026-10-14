@@ -10,6 +10,9 @@ export type PublicBarbershop = {
   name: string;
   subdomain: string;
   timezone: string;
+  /** Datos públicos opcionales que edita el admin en "Mi barbería" (spec 006); null = sin dato. */
+  description: string | null;
+  address: string | null;
 };
 
 /**
@@ -21,7 +24,14 @@ export const getPublicBarbershop = cache(
   async (subdomain: string): Promise<PublicBarbershop | null> => {
     const [row] = await withService((tx) =>
       tx
-        .select({ id: barbershops.id, name: barbershops.name, subdomain: barbershops.subdomain, timezone: barbershops.timezone })
+        .select({
+          id: barbershops.id,
+          name: barbershops.name,
+          subdomain: barbershops.subdomain,
+          timezone: barbershops.timezone,
+          description: barbershops.description,
+          address: barbershops.address,
+        })
         .from(barbershops)
         .where(and(eq(barbershops.subdomain, subdomain), eq(barbershops.isActive, true)))
         .limit(1),

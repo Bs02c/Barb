@@ -41,10 +41,9 @@ type DayHours = {
   closeLabel: string | null;
 };
 
-type OpeningStatus =
-  | { kind: "open"; text: string }        // "Abierto ahora · hasta 7:00 p. m."
-  | { kind: "opensToday"; text: string }  // "Abre hoy a las 9:00 a. m."
-  | { kind: "closed"; text: string };     // "Cerrado ahora · Abre mañana a las 9:00 a. m." | "Cerrado ahora"
+type OpeningStatus = { kind: "open" | "opensToday" | "closed"; text: string };
+// open: "Abierto ahora · hasta 7:00 p. m."; opensToday: "Abre hoy a las 9:00 a. m.";
+// closed: "Cerrado ahora · Abre mañana a las 9:00 a. m." o "Cerrado ahora"
 
 function weeklyHours(slots: { weekday: number; startTime: string; endTime: string }[]): DayHours[];
 function openingStatus(hours: DayHours[], now: Date, timezone: string): OpeningStatus;
@@ -62,13 +61,14 @@ Los textos salen de aquí, no de los componentes: así se prueban con Vitest. `k
 
 ## Panel: "Mi barbería"
 
-### `getBarbershopInfo()` (`src/lib/admin/queries.ts`, nuevo)
+### `getBarbershopInfo(barbershop)` (`src/lib/admin/queries.ts`, nuevo)
 
 ```ts
-type BarbershopInfo = { name: string; description: string | null; address: string | null };
+type BarbershopInfo = { description: string | null; address: string | null };
+function getBarbershopInfo(barbershop: AdminBarbershop): Promise<BarbershopInfo>;
 ```
 
-Con `withAdmin` y la sesión del admin.
+Con `withAdmin`, filtrando por `barbershop.id` del contexto (`getAdminContext`). El nombre sale del propio contexto (`context.barbershop.name`).
 
 ### `updateBarbershopInfo(subdomain, prev, formData)` (`src/lib/admin/actions.ts`, nuevo)
 

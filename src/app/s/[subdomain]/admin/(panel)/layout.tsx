@@ -16,7 +16,7 @@ export default async function PanelLayout({ children, params }: LayoutProps<"/s/
     return (
       <main className="flex flex-1 flex-col items-center justify-center px-4 py-10">
         <div className="flex w-full max-w-sm flex-col gap-4 rounded-lg border bg-card p-6 text-center shadow-sm">
-          <ShieldAlert className="mx-auto size-8 text-destructive" strokeWidth={1.75} aria-hidden="true" />
+          <ShieldAlert className="mx-auto size-8 text-destructive-text" strokeWidth={1.75} aria-hidden="true" />
           <h1 className="text-xl font-semibold">Sin acceso al panel</h1>
           <p className="text-muted-foreground">
             {context.status === "inactive"
@@ -36,8 +36,10 @@ export default async function PanelLayout({ children, params }: LayoutProps<"/s/
         <SidebarNav />
         <SignOutButton variant="ghost" className="mt-auto" />
       </aside>
-      <header className="border-b bg-card px-4 py-3 md:hidden">
-        <p className="text-lg font-semibold">{context.barbershop.name}</p>
+      {/* En móvil "Cerrar sesión" va aquí: en la barra inferior solo caben las secciones. */}
+      <header className="flex items-center justify-between gap-3 border-b bg-card px-4 py-2 md:hidden">
+        <p className="min-w-0 truncate text-lg font-semibold">{context.barbershop.name}</p>
+        <SignOutButton variant="ghost" className="shrink-0" />
       </header>
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 pt-6 pb-24 md:px-8 md:pb-10">{children}</main>
       <BottomNav />

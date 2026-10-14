@@ -19,6 +19,7 @@ Migración nueva `db/migrations/0002_portada_barberia.sql` (dbmate, con `-- migr
 |---|---|---|---|
 | `authenticated` | `barbershops` | `select` | `select`, `update (description, address)` |
 | `authenticated` | `services` | `update (name, duration_minutes, price, is_active)` | `update (name, duration_minutes, price, is_active, description)` |
+| `authenticated` | función `private.is_valid_timezone(text)` | sin `execute` | `execute` (hallazgo de la implementación: Postgres evalúa todos los `check` de la fila en cada UPDATE, también el de `timezone`, que llama a esta función; sin el permiso, cualquier UPDATE de la barbería daría `42501`. Es pura: solo valida un nombre de zona, sin acceso a datos ni `SECURITY DEFINER`) |
 | `service_role` | `barbershops`, `services` | `select` | sin cambios (el `select` de tabla incluye las columnas nuevas) |
 | `app_login`, `auth_login`, `db_backup` | — | — | sin cambios |
 

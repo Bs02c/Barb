@@ -16,7 +16,7 @@ set search_path = tap, public;
 -- Las pruebas cambian de rol dentro de la transacción: los roles necesitan ver las funciones de pgTAP.
 grant usage on schema tap to authenticated, service_role, app_login;
 
-select plan(131);
+select plan(163);
 
 -- ---------------------------------------------------------------------------
 -- Datos de prueba (como postgres)
@@ -131,6 +131,35 @@ select throws_ok(
 select throws_ok(
   $$ delete from public.barbershops where id = 'bbbbbbbb-0000-4000-8000-000000000001' returning id $$,
   '42501', null, 'admin A: no borra la barbería B'
+);
+-- Spec 006: UPDATE de description y address (política barbershops_update)
+select isnt_empty(
+  $$ update public.barbershops set description = 'Cortes clásicos', address = 'Calle 1 # 2-3'
+     where id = 'aaaaaaaa-0000-4000-8000-000000000001' returning id $$,
+  'admin A: modifica description y address de su barbería'
+);
+select is_empty(
+  $$ update public.barbershops set description = 'Intrusa', address = 'Intrusa'
+     where id = 'bbbbbbbb-0000-4000-8000-000000000001' returning id $$,
+  'admin A: description y address de la barbería B afectan 0 filas'
+);
+select throws_ok(
+  format('update public.barbershops set %I = %s where id = %L', c.col, c.val, 'aaaaaaaa-0000-4000-8000-000000000001'),
+  '42501', null, format('admin A: no modifica barbershops.%s de su barbería', c.col)
+)
+from (values
+  ('name', quote_literal('Otro')),
+  ('subdomain', quote_literal('otro')),
+  ('timezone', quote_literal('America/Bogota')),
+  ('is_active', 'false')
+) as c (col, val);
+select isnt_empty(
+  $$ update public.services set description = 'Corte a tijera' where id = 'aaaaaaaa-0000-4000-8000-0000000000c1' returning id $$,
+  'admin A: modifica services.description de su servicio'
+);
+select is_empty(
+  $$ update public.services set description = 'Intruso' where id = 'bbbbbbbb-0000-4000-8000-0000000000c1' returning id $$,
+  'admin A: services.description de B afecta 0 filas'
 );
 
 -- ---- profiles: solo ve el suyo y no puede cambiar ninguno --------------------
@@ -356,6 +385,23 @@ select is_empty(format('delete from public.%I returning id', tbl), format('sin p
 select throws_ok(format('delete from public.%I returning id', tbl), '42501', null,
                  format('sin perfil: DELETE en %s denegado por privilegio', tbl))
   from access_cases where del_denied order by tbl;
+-- Spec 006: description y address de barbershops
+select is_empty(
+  $$ update public.barbershops set description = 'X', address = 'X' returning id $$,
+  'sin perfil: description y address de barbershops afectan 0 filas'
+);
+select throws_ok(
+  format('update public.barbershops set %I = %s', c.col, c.val),
+  '42501', null, format('sin perfil: no modifica barbershops.%s', c.col)
+)
+from (values
+  ('name', quote_literal('Otro')), ('subdomain', quote_literal('otro')),
+  ('timezone', quote_literal('America/Bogota')), ('is_active', 'false')
+) as c (col, val);
+select is_empty(
+  $$ update public.services set description = 'X' returning id $$,
+  'sin perfil: services.description afecta 0 filas'
+);
 
 -- ===========================================================================
 -- Sin rol de trabajo (sustituye a anon): una conexión de la app que no cambió a authenticated ni
@@ -374,6 +420,43 @@ select throws_ok($$ select 1 from public.appointments $$, '42501', null, 'app_lo
 select throws_ok(
   $$ update public.appointments set customer_name = 'X' $$,
   '42501', null, 'app_login sin rol de trabajo: no modifica appointments'
+);
+select throws_ok(
+  $$ update public.barbershops set description = 'X', address = 'X' $$,
+  '42501', null, 'app_login sin rol de trabajo: no modifica description ni address de barbershops'
+);
+select throws_ok(
+  $$ update public.barbershops set name = 'X' $$,
+  '42501', null, 'app_login sin rol de trabajo: no modifica barbershops.name'
+);
+select throws_ok(
+  $$ update public.services set description = 'X' $$,
+  '42501', null, 'app_login sin rol de trabajo: no modifica services.description'
+);
+
+-- ===========================================================================
+-- service_role (web pública): lee, pero no modifica barberías ni servicios (spec 006)
+-- ===========================================================================
+reset role;
+set local role service_role;
+
+select throws_ok(
+  $$ update public.barbershops set description = 'X', address = 'X'
+     where id = 'aaaaaaaa-0000-4000-8000-000000000001' $$,
+  '42501', null, 'service_role: no modifica description ni address de su barbería'
+);
+select throws_ok(
+  $$ update public.barbershops set description = 'X', address = 'X'
+     where id = 'bbbbbbbb-0000-4000-8000-000000000001' $$,
+  '42501', null, 'service_role: no modifica description ni address de otra barbería'
+);
+select throws_ok(
+  $$ update public.barbershops set name = 'X' where id = 'aaaaaaaa-0000-4000-8000-000000000001' $$,
+  '42501', null, 'service_role: no modifica barbershops.name'
+);
+select throws_ok(
+  $$ update public.services set description = 'X' where id = 'aaaaaaaa-0000-4000-8000-0000000000c1' $$,
+  '42501', null, 'service_role: no modifica services.description'
 );
 
 -- ===========================================================================
@@ -427,6 +510,19 @@ select is_empty(format('delete from public.%I returning id', tbl), format('super
 select throws_ok(format('delete from public.%I returning id', tbl), '42501', null,
                  format('super admin: DELETE en %s denegado por privilegio', tbl))
   from access_cases where del_denied order by tbl;
+-- Spec 006: description y address de barbershops
+select is_empty(
+  $$ update public.barbershops set description = 'X', address = 'X' returning id $$,
+  'super admin: description y address de barbershops afectan 0 filas'
+);
+select throws_ok(
+  format('update public.barbershops set %I = %s', c.col, c.val),
+  '42501', null, format('super admin: no modifica barbershops.%s', c.col)
+)
+from (values
+  ('name', quote_literal('Otro')), ('subdomain', quote_literal('otro')),
+  ('timezone', quote_literal('America/Bogota')), ('is_active', 'false')
+) as c (col, val);
 
 -- ===========================================================================
 -- Nadie reactiva una cita cancelada, tampoco el servidor (superusuario / db_owner)
@@ -463,6 +559,23 @@ select is_empty(format('delete from public.%I returning id', tbl),
 select throws_ok(format('delete from public.%I returning id', tbl), '42501', null,
                  format('admin de barbería desactivada: DELETE en %s denegado por privilegio', tbl))
   from access_cases where del_denied order by tbl;
+-- Spec 006: description y address de barbershops
+select is_empty(
+  $$ update public.barbershops set description = 'X', address = 'X' returning id $$,
+  'admin de barbería desactivada: description y address de barbershops afectan 0 filas'
+);
+select throws_ok(
+  format('update public.barbershops set %I = %s', c.col, c.val),
+  '42501', null, format('admin de barbería desactivada: no modifica barbershops.%s', c.col)
+)
+from (values
+  ('name', quote_literal('Otro')), ('subdomain', quote_literal('otro')),
+  ('timezone', quote_literal('America/Bogota')), ('is_active', 'false')
+) as c (col, val);
+select is_empty(
+  $$ update public.services set description = 'X' returning id $$,
+  'admin de barbería desactivada: services.description afecta 0 filas'
+);
 
 set local app.user_id = 'cccccccc-0000-4000-8000-0000000000a1';
 select isnt_empty(

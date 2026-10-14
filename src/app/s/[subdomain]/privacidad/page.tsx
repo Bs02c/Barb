@@ -28,7 +28,7 @@ export default async function PrivacyPage(props: PageProps<"/s/[subdomain]/priva
   if (!barbershop) notFound();
 
   const linkClass =
-    "rounded-sm font-medium text-selection underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
+    "rounded-sm font-medium text-link underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-8 leading-relaxed">

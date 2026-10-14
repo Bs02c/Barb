@@ -10,7 +10,7 @@ create schema tap;
 create extension pgtap with schema tap;
 set search_path = tap, public;
 
-select plan(34);
+select plan(58);
 
 -- ---------------------------------------------------------------------------
 -- Datos de prueba
@@ -234,6 +234,50 @@ select throws_ok(
   '23505', 'duplicate key value violates unique constraint "barbershops_subdomain_key"',
   'subdominio repetido: rechazado'
 );
+
+-- ---------------------------------------------------------------------------
+-- Portada (spec 006): barbershops.description (160), barbershops.address (200), services.description (200).
+-- Mismas reglas en las tres: null o 1..max caracteres, sin espacios en los extremos ni saltos de línea.
+-- ---------------------------------------------------------------------------
+create temp table cover_fields (tbl text, col text, max_len int, con text, row_id uuid);
+insert into cover_fields values
+  ('barbershops', 'description', 160, 'barbershops_description_check', 'aaaaaaaa-0000-4000-8000-000000000001'),
+  ('barbershops', 'address',     200, 'barbershops_address_check',     'aaaaaaaa-0000-4000-8000-000000000001'),
+  ('services',    'description', 200, 'services_description_check',    'aaaaaaaa-0000-4000-8000-0000000000c1');
+
+select throws_ok(
+  format('update public.%I set %I = %s where id = %L', f.tbl, f.col, quote_literal(v.val), f.row_id),
+  '23514', pg_temp.check_msg(f.tbl, f.con),
+  format('%s.%s: %s rechazado', f.tbl, f.col, v.label)
+)
+from cover_fields f
+cross join (values
+  ('cadena vacía', ''),
+  ('solo espacios', '   '),
+  ('espacio inicial', ' Hola'),
+  ('espacio final', 'Hola '),
+  ('salto de línea', E'Hola\nmundo')
+) as v (label, val)
+order by f.tbl, f.col, v.label;
+
+select lives_ok(
+  format('update public.%I set %I = %s where id = %L', f.tbl, f.col, quote_literal(repeat('a', f.max_len)), f.row_id),
+  format('%s.%s: %s caracteres (límite) aceptado', f.tbl, f.col, f.max_len)
+)
+from cover_fields f order by f.tbl, f.col;
+
+select throws_ok(
+  format('update public.%I set %I = %s where id = %L', f.tbl, f.col, quote_literal(repeat('a', f.max_len + 1)), f.row_id),
+  '23514', pg_temp.check_msg(f.tbl, f.con),
+  format('%s.%s: %s caracteres (uno sobre el límite) rechazado', f.tbl, f.col, f.max_len + 1)
+)
+from cover_fields f order by f.tbl, f.col;
+
+select lives_ok(
+  format('update public.%I set %I = null where id = %L', f.tbl, f.col, f.row_id),
+  format('%s.%s: null aceptado', f.tbl, f.col)
+)
+from cover_fields f order by f.tbl, f.col;
 
 -- ---------------------------------------------------------------------------
 -- Perfiles incoherentes

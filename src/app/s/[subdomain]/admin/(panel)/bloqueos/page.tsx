@@ -32,7 +32,7 @@ export default async function BlocksPage(props: PageProps<"/s/[subdomain]/admin/
       {barbers.length === 0 ? (
         <p className="text-muted-foreground">
           Aún no hay barberos.{" "}
-          <Link href="/admin/barberos" className="font-medium text-selection underline underline-offset-4">
+          <Link href="/admin/barberos" className="font-medium text-link underline underline-offset-4">
             Añade el primero
           </Link>{" "}
           para poder bloquear su tiempo.

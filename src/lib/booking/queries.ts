@@ -1,9 +1,10 @@
 import "server-only";
-import { and, asc, eq, exists, gt, gte, inArray, lt } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, lt } from "drizzle-orm";
 import { cache } from "react";
 import type { PublicBarbershop } from "@/lib/barbershops";
 import { withService } from "@/lib/db/client";
-import { appointments, barberBlocks, barberSchedules, barbers, barbershops, services } from "@/lib/db/schema";
+import { appointments, barberBlocks, barberSchedules, barbers, services } from "@/lib/db/schema";
+import { weeklyHours } from "@/lib/storefront/hours";
 import { addDaysToLocalDate, formatLocalDate, formatPrice, localDateTimeToUtc, toLocalDate } from "@/lib/time";
 import { computeAvailableSlots, HORIZON_DAYS, type AvailableSlot } from "./availability";
 import { EARLIEST } from "./schemas";
@@ -15,7 +16,15 @@ import { EARLIEST } from "./schemas";
 /** Tope defensivo de las listas del catálogo: ya no existe el max_rows de PostgREST (PERF-007). */
 const LIST_LIMIT = 200;
 
-export type CatalogService = { id: string; name: string; durationMinutes: number; price: number; priceLabel: string };
+export type CatalogService = {
+  id: string;
+  name: string;
+  durationMinutes: number;
+  price: number;
+  priceLabel: string;
+  /** Descripción breve opcional (spec 006); null = sin dato. */
+  description: string | null;
+};
 export type CatalogBarber = { id: string; name: string };
 
 /**
@@ -26,9 +35,15 @@ export type CatalogBarber = { id: string; name: string };
 export const getBookingCatalog = cache(async (barbershop: PublicBarbershop) => {
   // Una sola transacción (una conexión del pool) con las tres lecturas en serie: abrir una por lectura
   // ocupaba 3 conexiones por petición de un pool de 10 (revisión spec 005, PERF-001).
-  const { serviceRows, barberRows, hasSchedule } = await withService(async (tx) => {
+  const { serviceRows, barberRows, scheduleRows } = await withService(async (tx) => {
     const serviceRows = await tx
-      .select({ id: services.id, name: services.name, durationMinutes: services.durationMinutes, price: services.price })
+      .select({
+        id: services.id,
+        name: services.name,
+        durationMinutes: services.durationMinutes,
+        price: services.price,
+        description: services.description,
+      })
       .from(services)
       .where(and(eq(services.barbershopId, barbershop.id), eq(services.isActive, true)))
       .orderBy(asc(services.name))
@@ -39,20 +54,16 @@ export const getBookingCatalog = cache(async (barbershop: PublicBarbershop) => {
       .where(and(eq(barbers.barbershopId, barbershop.id), eq(barbers.isActive, true)))
       .orderBy(asc(barbers.name))
       .limit(LIST_LIMIT);
-    // ¿Algún barbero ACTIVO tiene horario? Con EXISTS, sin bajar todas las filas (PERF-006).
-    const [{ hasSchedule }] = await tx
-      .select({
-        hasSchedule: exists(
-          tx
-            .select({ one: barberSchedules.id })
-            .from(barberSchedules)
-            .innerJoin(barbers, eq(barbers.id, barberSchedules.barberId))
-            .where(and(eq(barberSchedules.barbershopId, barbershop.id), eq(barbers.isActive, true))),
-        ).mapWith(Boolean),
-      })
-      .from(barbershops)
-      .where(eq(barbershops.id, barbershop.id));
-    return { serviceRows, barberRows, hasSchedule };
+    // Tramos semanales de los barberos ACTIVOS: dan el horario de la portada y si hay algo que
+    // reservar (spec 006, research R3). Sustituye al EXISTS de PERF-006: son pocas filas
+    // (barberos × 7 días × tramos) y evitan una consulta aparte para el horario.
+    const scheduleRows = await tx
+      .select({ weekday: barberSchedules.weekday, startTime: barberSchedules.startTime, endTime: barberSchedules.endTime })
+      .from(barberSchedules)
+      .innerJoin(barbers, eq(barbers.id, barberSchedules.barberId))
+      .where(and(eq(barberSchedules.barbershopId, barbershop.id), eq(barbers.isActive, true)))
+      .limit(LIST_LIMIT * 7); // tope solo defensivo: una barbería real tiene decenas de filas (PERF-002)
+    return { serviceRows, barberRows, scheduleRows };
   });
 
   return {
@@ -63,11 +74,14 @@ export const getBookingCatalog = cache(async (barbershop: PublicBarbershop) => {
         durationMinutes: s.durationMinutes,
         price: Number(s.price), // numeric llega como texto
         priceLabel: formatPrice(s.price),
+        description: s.description,
       }),
     ),
     barbers: barberRows satisfies CatalogBarber[],
+    /** Horario de la barbería de lunes a domingo (portada, spec 006). */
+    weeklyHours: weeklyHours(scheduleRows),
     /** Única regla de "se puede reservar": servicios activos y algún barbero activo con horario (MAINT-001). */
-    bookable: serviceRows.length > 0 && hasSchedule,
+    bookable: serviceRows.length > 0 && scheduleRows.length > 0,
   };
 });
 

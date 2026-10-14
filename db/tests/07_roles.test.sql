@@ -285,7 +285,8 @@ select throws_ok(
   '23P01', null, 'authenticated: un tramo solapado se rechaza (23P01)');
 select throws_ok($$ select 1 from identity."user" $$, '42501', null, 'authenticated: no lee identity."user"');
 select throws_ok($$ select 1 from identity.session $$, '42501', null, 'authenticated: no lee identity.session');
-select throws_ok($$ select private.is_valid_timezone('UTC') $$, '42501', null, 'authenticated: no ejecuta private.is_valid_timezone');
+-- Spec 006: el check de timezone se evalúa en cada UPDATE de barbershops, así que authenticated la ejecuta.
+select lives_ok($$ select private.is_valid_timezone('UTC') $$, 'authenticated: ejecuta private.is_valid_timezone (check del UPDATE de barbershops)');
 select throws_ok($$ select 1 from dbmate.schema_migrations $$, '42501', null, 'authenticated: no lee dbmate.schema_migrations');
 select throws_ok($$ truncate public.barbers $$, '42501', null, 'authenticated: no puede TRUNCATE');
 select is(

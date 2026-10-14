@@ -35,7 +35,7 @@ export default async function SchedulesPage(props: PageProps<"/s/[subdomain]/adm
       {barbers.length === 0 ? (
         <p className="text-muted-foreground">
           Aún no hay barberos.{" "}
-          <Link href="/admin/barberos" className="font-medium text-selection underline underline-offset-4">
+          <Link href="/admin/barberos" className="font-medium text-link underline underline-offset-4">
             Añade el primero
           </Link>{" "}
           y luego vuelve aquí para asignarle su horario.

@@ -29,7 +29,7 @@ test("un cliente reserva una cita con «Lo más pronto» desde el celular", asyn
   // Página de la barbería.
   await page.goto("/");
   await expectNoAxeViolations(page);
-  await page.getByRole("link", { name: "Reservar cita" }).click();
+  await page.getByRole("link", { name: "Reservar lo más pronto" }).click();
 
   // Paso 1: servicio.
   await expect(page.getByText("Paso 1 de 4")).toBeVisible();

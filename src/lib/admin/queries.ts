@@ -4,7 +4,7 @@ import { dayRangeUtc } from "@/lib/admin/agenda";
 import type { AdminBarbershop } from "@/lib/admin/session";
 import { getVerifiedSession, type VerifiedSession } from "@/lib/auth/session";
 import { withAdmin, type Tx } from "@/lib/db/client";
-import { appointments, barberBlocks, barberSchedules, barbers, services } from "@/lib/db/schema";
+import { appointments, barberBlocks, barberSchedules, barbers, barbershops, services } from "@/lib/db/schema";
 
 // Lecturas del panel con la identidad del admin: RLS limita a su barbería (no hay filtro por
 // barbershop_id en el código a propósito: ADR-017, riesgo aceptado y cubierto por tests).
@@ -14,7 +14,14 @@ import { appointments, barberBlocks, barberSchedules, barbers, services } from "
 const LIST_LIMIT = 500;
 
 export type Barber = { id: string; name: string; is_active: boolean };
-export type Service = { id: string; name: string; duration_minutes: number; price: number; is_active: boolean };
+export type Service = {
+  id: string;
+  name: string;
+  duration_minutes: number;
+  price: number;
+  is_active: boolean;
+  description: string | null;
+};
 export type ScheduleSlot = { id: string; barber_id: string; weekday: number; start_time: string; end_time: string };
 export type Block = { id: string; barber_id: string; starts_at: string; ends_at: string; reason: string | null };
 
@@ -44,12 +51,34 @@ export async function listServices(): Promise<Service[]> {
         duration_minutes: services.durationMinutes,
         price: services.price,
         is_active: services.isActive,
+        description: services.description,
       })
       .from(services)
       .orderBy(desc(services.isActive), asc(services.name))
       .limit(LIST_LIMIT),
   );
   return rows.map((s) => ({ ...s, price: Number(s.price) })); // numeric llega como texto
+}
+
+export type BarbershopInfo = { description: string | null; address: string | null };
+
+/**
+ * Datos públicos que el admin edita en "Mi barbería" (spec 006). El nombre ya viene en el contexto
+ * (getAdminContext). Se filtra por la barbería del contexto además de RLS: así no depende de qué
+ * filas deje ver la política (el super admin ve todas, aunque no entra al panel).
+ */
+export async function getBarbershopInfo(barbershop: AdminBarbershop): Promise<BarbershopInfo> {
+  const [row] = await asAdmin((tx) =>
+    tx
+      .select({ description: barbershops.description, address: barbershops.address })
+      .from(barbershops)
+      .where(eq(barbershops.id, barbershop.id))
+      .limit(1),
+  );
+  // getAdminContext ya comprobó que la barbería existe y es suya: si no hay fila, algo falló (RLS o el
+  // filtro), y mostrar los campos vacíos lo ocultaría (revisión spec 006, MAINT-005).
+  if (!row) throw new Error("La barbería del admin no se encontró al leer Mi barbería");
+  return row;
 }
 
 /** Tramos del horario semanal (hora local), ordenados por barbero, día y hora. */

@@ -172,7 +172,7 @@ async function BookingStep({
               </p>
               <Link
                 href={calendarHref}
-                className="inline-flex h-11 w-fit items-center rounded-lg font-medium underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="inline-flex h-11 w-fit items-center rounded-lg font-medium text-link underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 Prefiero elegir otra hora
               </Link>

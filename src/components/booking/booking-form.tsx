@@ -130,7 +130,7 @@ function ConsentField({ errors }: { errors?: string[] }) {
             href="/privacidad"
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-sm font-medium text-selection underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="rounded-sm font-medium text-link underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             política de tratamiento de datos
             <span className="sr-only"> (se abre en otra pestaña)</span>
@@ -139,7 +139,7 @@ function ConsentField({ errors }: { errors?: string[] }) {
         </label>
       </div>
       {errors?.length ? (
-        <p id={errorId} className="flex items-start gap-1.5 text-sm text-destructive">
+        <p id={errorId} className="flex items-start gap-1.5 text-sm text-destructive-text">
           <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span>{errors.join(" ")}</span>
         </p>
@@ -153,7 +153,7 @@ function ResultMessage({ state, slotsHref }: { state: BookingResult | null; slot
   return (
     <div role="status" aria-live="polite">
       {state && !state.ok && (
-        <div className="flex flex-col gap-2 text-sm font-medium text-destructive">
+        <div className="flex flex-col gap-2 text-sm font-medium text-destructive-text">
           <p className="flex items-start gap-2">
             <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <span>{state.message}</span>
@@ -161,7 +161,7 @@ function ResultMessage({ state, slotsHref }: { state: BookingResult | null; slot
           {state.code === "slot_taken" && (
             <Link
               href={slotsHref}
-              className="ml-6 w-fit rounded-sm text-selection underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="ml-6 w-fit rounded-sm text-link underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               Elegir otra hora
             </Link>
@@ -198,7 +198,7 @@ function Confirmation({ summary }: { summary: BookingSummary | null }) {
       <Link
         href="/"
         className={cn(
-          "w-fit rounded-sm font-medium text-selection underline underline-offset-4 outline-none",
+          "w-fit rounded-sm font-medium text-link underline underline-offset-4 outline-none",
           "focus-visible:ring-3 focus-visible:ring-ring/50",
         )}
       >

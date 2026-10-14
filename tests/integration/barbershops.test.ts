@@ -20,8 +20,16 @@ describe("getPublicBarbershop", () => {
   it("devuelve una barbería activa con solo sus campos públicos", async () => {
     const barbershop = await getPublicBarbershop("labarberia");
     expect(barbershop).not.toBeNull();
-    expect(Object.keys(barbershop!).sort()).toEqual(["id", "name", "subdomain", "timezone"]);
+    expect(Object.keys(barbershop!).sort()).toEqual(["address", "description", "id", "name", "subdomain", "timezone"]);
     expect(barbershop!.subdomain).toBe("labarberia");
+  });
+
+  it("incluye la descripción y la dirección públicas, o null si no tiene (spec 006)", async () => {
+    expect(await getPublicBarbershop("labarberia")).toMatchObject({
+      description: "Cortes clásicos y barba con navaja, sin afanes.",
+      address: "Calle 45 # 12-30, Bogotá",
+    });
+    expect(await getPublicBarbershop("elcorte")).toMatchObject({ description: null, address: null });
   });
 
   it("devuelve null si el subdominio no existe", async () => {

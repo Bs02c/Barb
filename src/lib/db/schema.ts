@@ -28,6 +28,8 @@ export const barbershops = pgTable("barbershops", {
   subdomain: text("subdomain").notNull(),
   timezone: text("timezone").notNull().default("America/Bogota"),
   isActive: boolean("is_active").notNull().default(true),
+  description: text("description"), // pública; null = sin dato (spec 006)
+  address: text("address"), // pública; null = sin dato (spec 006)
   createdAt: timestamptz("created_at").notNull().defaultNow(),
 });
 
@@ -53,6 +55,7 @@ export const services = pgTable("services", {
   durationMinutes: integer("duration_minutes").notNull(),
   price: numeric("price", { precision: 12, scale: 2 }).notNull(), // texto: convertir con Number()
   isActive: boolean("is_active").notNull().default(true),
+  description: text("description"), // pública; null = sin dato (spec 006)
   createdAt: timestamptz("created_at").notNull().defaultNow(),
 });
 
