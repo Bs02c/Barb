@@ -121,6 +121,17 @@ Reglas:
 - **Portada = servicios:** la página principal de cada barbería muestra la portada, el botón principal "Reservar lo más pronto", la lista de servicios (cada uno con su "Reservar", que entra a la reserva con el servicio ya elegido, en el paso 2) y el horario de la semana con el día de hoy resaltado.
 - **Reserva por pasos** (divulgación progresiva): 1 servicio → 2 barbero → 3 fecha y hora → 4 datos y consentimiento → confirmación. Un objetivo por pantalla; el resumen de lo elegido siempre visible arriba.
   - **Paso 2:** primera opción **"Lo más pronto"** (icono de reloj; "El primer horario libre con cualquier barbero"), luego una tarjeta por barbero con su nombre. Mostrar la fecha más próxima de cada barbero está en el Roadmap.
+  - **Paso 3 (fecha y hora, revisión del usuario 2026-10-14):** tres bloques que aparecen en orden.
+    1. **Carrusel de fechas:** una fila horizontal que se desliza (scroll horizontal con *snap*, sin flechas obligatorias), con los 30 días del horizonte. Cada **tarjeta de fecha** (56 × 72 px: en un celular de 390 px caben cinco y la sexta asoma cortada, para que se note que la fila se desliza) lleva el día de la semana corto ("jue"), el número grande y el mes ("oct"); la de hoy dice "Hoy" en lugar del día de la semana.
+       - Disponible: fondo `card`, borde `border`.
+       - Elegida: borde de 2 px `accent`, fondo `muted` y `aria-current="date"`.
+       - Sin horas: fondo `unavailable`, texto `unavailable-foreground` y número tachado. No es un enlace (`aria-disabled`, nombre accesible "jue 15 oct, sin horas").
+       - Al cargar, la fecha elegida se desplaza a la vista.
+    2. **Tarjetas de franja** "Mañana" (antes de 12:00), "Tarde" (12:00–5:59 p. m.) y "Noche" (desde 6:00 p. m.), en una fila de tres. Cada una lleva el número de horas libres ("6 horas").
+       - Al elegir la fecha se abre la primera franja con horas.
+       - Una franja sin horas va en gris y no se puede elegir, igual que una fecha sin horas.
+       - La elegida lleva borde `accent` y `aria-current="true"`.
+    3. **Horas** de la franja abierta, como **chips de horario**.
   - **Paso 4:** campos "Nombre", **"Número de contacto"** (celular, `inputmode="tel"`) y "Correo", más la casilla de autorización de datos.
 - **Panel del admin:** navegación lateral en escritorio y barra inferior en móvil; tablas simples con filas de 44 px; acciones destructivas con confirmación.
   - **Agenda:** columnas Hora, **Barbero**, Cliente, Servicio, Estado y acción; por defecto, todos los barberos del día.

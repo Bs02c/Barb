@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DateCarousel } from "@/components/booking/date-carousel";
+import { PeriodPicker } from "@/components/booking/period-picker";
 import { BookingForm } from "@/components/booking/booking-form";
 import {
   BookingSummary,
@@ -11,6 +13,7 @@ import {
   type SummaryItem,
 } from "@/components/booking/step-layout";
 import { getPublicBarbershop, type PublicBarbershop } from "@/lib/barbershops";
+import { groupByPeriod, pickPeriod } from "@/lib/booking/calendar";
 import { MESSAGES } from "@/lib/booking/messages";
 import { getAvailability, getBookingCatalog } from "@/lib/booking/queries";
 import { EARLIEST } from "@/lib/booking/schemas";
@@ -32,7 +35,7 @@ export async function generateMetadata(props: PageProps<"/s/[subdomain]/reservar
 const LOCAL_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 // `elegir=1`: con "Lo más pronto", mostrar el calendario en lugar de saltar a la primera hora libre.
-type Params = { servicio?: string; barbero?: string; dia?: string; hora?: string; elegir?: string };
+type Params = { servicio?: string; barbero?: string; dia?: string; hora?: string; franja?: string; elegir?: string };
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -66,6 +69,7 @@ export default async function BookingPage(props: PageProps<"/s/[subdomain]/reser
           barbero: first(query.barbero),
           dia: first(query.dia),
           hora: first(query.hora),
+          franja: first(query.franja),
           elegir: first(query.elegir),
         }}
       />
@@ -144,7 +148,7 @@ async function BookingStep({
   // Paso 3: día y hora, de una sola consulta. Null si la selección dejó de ser válida.
   const availability = await getAvailability(barbershop, service.id, barberParam);
   if (!availability) return <StepFallback href={barberStepHref} />;
-  const { days, slotsByDay } = availability;
+  const { days, slotsByDay, calendar } = availability;
   const base = { servicio: service.id, barbero: barberParam };
 
   // "Lo más pronto" se salta el calendario: paso de datos con la primera hora libre (FR-004).
@@ -196,6 +200,8 @@ async function BookingStep({
     params.dia && LOCAL_DATE.test(params.dia) ? days.find((d) => d.localDate === params.dia) : undefined;
   const slots = day ? (slotsByDay.get(day.localDate) ?? []) : [];
   const slot = slots.find((s) => s.startsAt === params.hora);
+  const periods = groupByPeriod(slots, barbershop.timezone);
+  const openPeriod = pickPeriod(periods, params.franja);
 
   if (!day || !slot) {
     return (
@@ -209,30 +215,40 @@ async function BookingStep({
           />
         ) : (
           <>
-            <nav aria-label="Días disponibles">
-              <ul className="flex flex-wrap gap-2">
-                {days.map((d) => (
-                  <li key={d.localDate}>
-                    <Chip href={bookingHref({ ...base, dia: d.localDate })} selected={d.localDate === day?.localDate}>
-                      {d.label}
-                    </Chip>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-            {day && (
-              <section aria-labelledby="horas-title" className="flex flex-col gap-3">
-                <h3 id="horas-title" className="font-semibold">
-                  Horas disponibles el {day.label}
-                </h3>
-                <ul className="flex flex-wrap gap-2">
-                  {slots.map((s) => (
-                    <li key={s.startsAt}>
-                      <Chip href={bookingHref({ ...base, dia: day.localDate, hora: s.startsAt })}>{s.label}</Chip>
-                    </li>
-                  ))}
-                </ul>
-              </section>
+            <DateCarousel
+              days={calendar.map((c) => ({ ...c, href: bookingHref({ ...base, dia: c.localDate }) }))}
+              selected={day?.localDate}
+            />
+            {day ? (
+              <>
+                <PeriodPicker
+                  periods={periods.map((p) => ({
+                    id: p.id,
+                    label: p.label,
+                    count: p.slots.length,
+                    href: bookingHref({ ...base, dia: day.localDate, franja: p.id }),
+                  }))}
+                  selected={openPeriod?.id}
+                />
+                {openPeriod && (
+                  <section aria-labelledby="horas-title" className="flex flex-col gap-3">
+                    <h3 id="horas-title" className="font-semibold">
+                      Horas de la {openPeriod.label.toLowerCase()} el {day.label}
+                    </h3>
+                    <ul className="flex flex-wrap gap-2">
+                      {openPeriod.slots.map((s) => (
+                        <li key={s.startsAt}>
+                          <Chip href={bookingHref({ ...base, dia: day.localDate, franja: openPeriod.id, hora: s.startsAt })}>
+                            {s.label}
+                          </Chip>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+              </>
+            ) : (
+              <p className="text-muted-foreground">Elige una fecha</p>
             )}
           </>
         )}
@@ -242,7 +258,12 @@ async function BookingStep({
 
   // Paso 4: datos del cliente. Con "Lo más pronto" se muestra el barbero que se asignaría;
   // el formulario sigue enviando "pronto" y el servidor vuelve a asignar al confirmar.
-  const slotsHref = bookingHref({ servicio: service.id, barbero: barberParam, dia: day.localDate });
+  const slotsHref = bookingHref({
+    servicio: service.id,
+    barbero: barberParam,
+    dia: day.localDate,
+    franja: periods.find((p) => p.slots.includes(slot))?.id,
+  });
   const finalSummary: SummaryItem[] = [
     summary[0],
     { label: "Barbero", value: isEarliest ? slot.barberName : barber!.name },

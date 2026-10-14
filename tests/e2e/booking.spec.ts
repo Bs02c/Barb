@@ -48,7 +48,7 @@ test("un cliente reserva una cita con «Lo más pronto» desde el celular", asyn
   await expect(page.getByText("Paso 3 de 3")).toBeVisible();
   await expect(page.getByText(/La más pronta:/)).toBeVisible();
   await page.getByRole("link", { name: "Prefiero elegir otra hora" }).click();
-  await expect(page.getByRole("navigation", { name: "Días disponibles" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Fechas" })).toBeVisible();
   await expectNoAxeViolations(page);
   await page.goBack();
 

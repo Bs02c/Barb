@@ -7,6 +7,7 @@ import { appointments, barberBlocks, barberSchedules, barbers, services } from "
 import { weeklyHours } from "@/lib/storefront/hours";
 import { addDaysToLocalDate, formatLocalDate, formatPrice, localDateTimeToUtc, toLocalDate } from "@/lib/time";
 import { computeAvailableSlots, HORIZON_DAYS, type AvailableSlot } from "./availability";
+import { bookingCalendar } from "./calendar";
 import { EARLIEST } from "./schemas";
 
 // Lecturas de la reserva pública con service_role, que se salta RLS (el cliente no tiene sesión).
@@ -189,12 +190,15 @@ export const getAvailability = cache(
     if (!selection) return null;
     const names = new Map(selection.barbers.map((b) => [b.id, b.name]));
     const slotsByDay = new Map<string, DaySlot[]>();
-    for (const slot of await loadSlots(barbershop, selection)) {
+    const now = new Date();
+    for (const slot of await loadSlots(barbershop, selection, { now })) {
       const daySlots = slotsByDay.get(slot.localDate) ?? [];
       daySlots.push({ ...slot, barberName: names.get(slot.barberId) ?? "" });
       slotsByDay.set(slot.localDate, daySlots);
     }
     const days = [...slotsByDay.keys()].map((localDate) => ({ localDate, label: formatLocalDate(localDate) }));
-    return { days, slotsByDay };
+    // Carrusel del paso 3: los 30 días del horizonte, con los que no tienen horas en gris.
+    const calendar = bookingCalendar(toLocalDate(now, barbershop.timezone), new Set(slotsByDay.keys()));
+    return { days, slotsByDay, calendar };
   },
 );

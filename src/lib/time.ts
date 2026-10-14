@@ -107,6 +107,13 @@ export function formatLocalDate(localDate: string): string {
   );
 }
 
+/** Fecha local "2026-10-15" → { weekday: "jue", day: "15", month: "oct" } (tarjetas del calendario). */
+export function localDateParts(localDate: string): { weekday: string; day: string; month: string } {
+  const date = new Date(`${localDate}T12:00:00Z`);
+  const month = dateFormatter(LOCALE, { timeZone: "UTC", month: "short" }).format(date).replace(".", "");
+  return { weekday: WEEKDAYS[isoWeekday(localDate) - 1].short, day: String(date.getUTCDate()), month };
+}
+
 /** Suma días a una fecha local "YYYY-MM-DD" sin pasar por ninguna zona horaria. */
 export function addDaysToLocalDate(localDate: string, days: number): string {
   const date = new Date(`${localDate}T00:00:00Z`);
