@@ -361,18 +361,18 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
   - Si empeora más de un 10 % (SC-005), investigar antes de cerrar (p. ej. `withService` en paralelo o tamaño del pool).
 - [X] T049 [P] [principal] `CLAUDE.md`: reescribir stack, comandos, entornos (ADR-017 §7), estructura (`db/`, `src/lib/db/`, `src/lib/auth/`, `compose.dev.yml`), variables y "Antes de dar una tarea por terminada" (sin `db:types`).
   - Sin rastro de Supabase salvo en la historia.
-- [ ] T050 [P] [principal] Vault:
+- [X] T050 [P] [principal] Vault:
   - ADR-001/002/003/005/007/008/011/013/014/016 con estado "modificado por ADR-017";
   - `Arquitectura/modelo-de-datos.md` y `despliegue.md` (roles, esquemas, Compose);
   - `Roadmap.md` (recordatorios sin `pg_cron` de Supabase);
   - `Plan-de-ejecucion.md` (fase 7 sin Supabase en la nube: contenedor `db` en el VPS, secretos, respaldos);
   - `Estado-actual.md` y `Pendientes.md`.
-- [ ] T051 [principal] Revisión de los **tres agentes revisores** en paralelo sobre el diff `main...005-migracion-postgresql` (hito de modelo de datos y RLS):
+- [X] T051 [principal] Revisión de los **tres agentes revisores** en paralelo sobre el diff `main...005-migracion-postgresql` (hito de modelo de datos y RLS):
   - `security-reviewer` con el modelo por defecto;
   - `performance-reviewer` y `maintainability-reviewer`;
   - consolidar el informe en `Revisiones/` del vault (coincidencias, contradicciones y puntos ciegos);
   - corregir los Critical y High antes de fusionar.
-- [ ] T052 [principal] Commit de cierre (`feat: migración a PostgreSQL propio (ADR-017)`), añadiendo archivos por nombre. Fusionar en `main` y subir con `git push`.
+- [X] T052 [principal] Commit de cierre (`feat: migración a PostgreSQL propio (ADR-017)`), añadiendo archivos por nombre. Fusionar en `main` y subir con `git push`.
 
 ---
 

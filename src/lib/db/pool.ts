@@ -19,7 +19,8 @@ function createPool(name: string, max: number): Pool {
   const config: PoolConfig = { connectionString, max, connectionTimeoutMillis: 5_000, idleTimeoutMillis: 30_000 };
   const pool = new Pool(config);
   // Una conexión inactiva que se cae (reinicio de la base) emite "error"; sin este manejador tumbaría el
-  // proceso. El pool la descarta y abre otra en la siguiente petición. Solo el código: nunca la URL.
+  // proceso. El pool la descarta y abre otra en la siguiente petición. Solo el código: nunca la URL ni el
+  // mensaje (puede nombrar host y puerto), por eso no usa logSafeError, que registra el mensaje de errores ajenos a la base.
   pool.on("error", (error) => console.error("Conexión de la base perdida", { code: (error as { code?: string }).code }));
   return pool;
 }

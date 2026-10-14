@@ -85,7 +85,7 @@ Tablas de Better Auth 1.7.7, con nombres de columna por defecto. RLS activado co
 | `"rateLimit"` | `id uuid pk`, `key text not null unique`, `count integer not null`, `"lastRequest" bigint not null` |
 
 - `public.profiles.user_id uuid primary key references identity."user"(id) on delete cascade`. Sin cambios en las demás columnas.
-- **Limpieza de sesiones caducadas:** Better Auth borra las caducadas al leerlas. Además, `db/maintenance/cleanup.sql` (`delete from identity.session where "expiresAt" < now() - interval '1 day'`) se ejecuta en el mismo cron que los respaldos (fase 7). Sin `pg_cron` (constitución VIII).
+- **Limpieza de sesiones caducadas:** Better Auth borra las caducadas al leerlas. Además, `db/maintenance/cleanup.sql` (borra sesiones, verificaciones y contadores de `rateLimit` caducados hace más de un día) se ejecuta en el mismo cron que los respaldos (fase 7). Sin `pg_cron` (constitución VIII).
 
 ## Tablas de negocio
 

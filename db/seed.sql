@@ -1,7 +1,9 @@
 -- Datos de demostración. SOLO local (`npm run db:reset`).
--- Nunca se cargan en el entorno de pruebas ni en producción: el servidor de pruebas tendrá en la
--- fase 7 su propio seed, sin usuarios con contraseña conocida (ADR-014).
--- Se carga como db_owner con `set app.env = 'local'` (lo hace scripts/db-reset.mts).
+-- Nunca se cargan en el entorno de pruebas ni en producción: allí los usuarios se crean con
+-- `npm run barbershop:create` y contraseña aleatoria (ADR-017 §7).
+-- Se carga como db_owner (scripts/db-reset.mts) y exige la marca app.env = 'local' que db/init/roles.sh
+-- pone solo en la base local. La forma de la cuenta de Better Auth (user + account 'credential') es la
+-- misma que en scripts/lib/admin-user.ts: si cambia allí, cambia aquí.
 --
 -- Usuarios de demostración (contraseña común, solo existe en local): Demo-Barberia-2026
 --   superadmin@example.com            super_admin
@@ -15,7 +17,7 @@ do $$
 begin
   if current_database() <> 'barberias'
      or current_setting('app.env', true) is distinct from 'local' then
-    raise exception 'db/seed.sql es solo para la base local: falta set app.env = ''local'' o la base no es barberias';
+    raise exception 'db/seed.sql es solo para la base local: la base no tiene la marca app.env = ''local'' o no es barberias';
   end if;
 end
 $$;

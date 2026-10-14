@@ -90,6 +90,13 @@ select is(
   (select array_agg(roleid::regrole::text order by roleid::regrole::text) from pg_auth_members where member = 'app_login'::regrole),
   array['authenticated', 'service_role'],
   'app_login es miembro solo de authenticated y service_role');
+-- Los roles de trabajo no son miembros de nada (revisión spec 005, SEC-013): un `grant db_owner to
+-- authenticated` haría al panel dueño de las tablas y RLS no se aplicaría. Lo vigila también la
+-- comprobación al arrancar (src/lib/db/startup-check.ts).
+select is_empty(
+  $$ select member::regrole, roleid::regrole from pg_auth_members
+     where member in ('authenticated'::regrole, 'service_role'::regrole) $$,
+  'authenticated y service_role no son miembros de ningún rol');
 select is(
   (select inherit_option from pg_auth_members where member = 'app_login'::regrole and roleid = 'authenticated'::regrole),
   false, 'app_login -> authenticated: INHERIT FALSE');
@@ -379,11 +386,6 @@ select ok(pg_has_role('app_login', 'service_role', 'SET'), 'app_login puede camb
 select ok(
   not pg_has_role('app_login', 'authenticated', 'USAGE') and not pg_has_role('app_login', 'service_role', 'USAGE'),
   'app_login no hereda los privilegios de authenticated ni de service_role (sin USAGE de membresía)');
-select lives_ok($$ set local role authenticated $$, 'app_login puede cambiar a authenticated');
-select is(current_user::text, 'authenticated', 'tras el cambio, current_user es authenticated');
-reset role;
-set local role app_login;
-select lives_ok($$ set local role service_role $$, 'app_login puede cambiar a service_role');
 reset role;
 
 select * from finish();

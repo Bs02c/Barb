@@ -5,6 +5,10 @@ import { ownerDb } from "./helpers/db";
 // Comprobación de roles al arrancar (spec 005, FR-014 y SC-006) contra el catálogo real de la base:
 // con app_login pasa; con el dueño de las tablas (db_owner), la app se negaría a arrancar.
 // src/instrumentation.ts llama a assertSafeRoles y sale con process.exit(1) si lanza.
+// Los roles de trabajo (SEC-013) no se prueban aquí con un GRANT real: `grant db_owner to authenticated`
+// afecta a los demás tests que corren en paralelo (el panel se salta RLS mientras dura). Lo cubren los
+// tests unitarios de workRoleProblems, el primer caso de este archivo (la consulta encuentra ambos roles)
+// y db/tests/07_roles.test.sql (membresías vacías).
 
 const pools = globalThis as unknown as { __appPool?: pg.Pool; __authPool?: pg.Pool };
 const opened: pg.Pool[] = [];

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { roleProblems } from "./startup-check";
+import { roleProblems, workRoleProblems } from "./startup-check";
 
 // Reglas de la comprobación al arrancar (spec 005, FR-014). La consulta real a pg_roles se prueba en
 // integración; aquí, qué se considera inseguro.
@@ -42,5 +42,31 @@ describe("roleProblems", () => {
   ])("rechaza %o", (override, reason) => {
     const problems = roleProblems({ ...safe, ...override }, "app_login");
     expect(problems.join(" ")).toContain(reason);
+  });
+});
+
+describe("workRoleProblems", () => {
+  const authenticated = { role: "authenticated", superuser: false, bypassrls: false, owns_objects: false, member_of: [] as string[] };
+  const serviceRole = { role: "service_role", superuser: false, bypassrls: true, owns_objects: false, member_of: [] as string[] };
+
+  it("acepta authenticated sin BYPASSRLS y service_role con BYPASSRLS, sin membresías", () => {
+    expect(workRoleProblems([authenticated, serviceRole])).toEqual([]);
+  });
+
+  it.each([
+    [{ bypassrls: true }, "no debe tener BYPASSRLS"],
+    [{ superuser: true }, "superusuario"],
+    [{ owns_objects: true }, "dueño"],
+    [{ member_of: ["db_owner"] }, "miembro de [db_owner]"],
+  ])("rechaza authenticated con %o", (override, reason) => {
+    expect(workRoleProblems([{ ...authenticated, ...override }, serviceRole]).join(" ")).toContain(reason);
+  });
+
+  it("rechaza service_role miembro de otro rol", () => {
+    expect(workRoleProblems([authenticated, { ...serviceRole, member_of: ["db_owner"] }]).join(" ")).toContain("miembro de");
+  });
+
+  it("rechaza que falte un rol de trabajo", () => {
+    expect(workRoleProblems([authenticated]).join(" ")).toContain('no existe el rol de trabajo "service_role"');
   });
 });

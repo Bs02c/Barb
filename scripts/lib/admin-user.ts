@@ -5,7 +5,8 @@
 //
 // Columnas de Better Auth 1.7.7 (esquema identity, db/migrations/0001_baseline.sql): una cuenta de
 // contraseña es una fila de `account` con providerId 'credential' y accountId = id del usuario.
-// Ejecutar como db_owner y dentro de la transacción del llamador.
+// db/seed.sql repite esta forma en SQL para los usuarios de demostración: si cambia aquí, cambia allí.
+// Ejecutar como db_owner y dentro de una transacción del llamador (el script y los tests la abren).
 
 type Queryable = { query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }> };
 

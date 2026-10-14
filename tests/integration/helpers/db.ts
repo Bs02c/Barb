@@ -16,8 +16,8 @@ if (!url || !["127.0.0.1", "localhost"].includes(new URL(url).hostname) || new U
 }
 for (const name of ["DATABASE_URL", "AUTH_DATABASE_URL"]) {
   const value = process.env[name];
-  if (value && !["127.0.0.1", "localhost"].includes(new URL(value).hostname)) {
-    throw new Error(`Los tests de integración solo corren contra la base local: ${name} no es local`);
+  if (value && (!["127.0.0.1", "localhost"].includes(new URL(value).hostname) || new URL(value).port !== "54329")) {
+    throw new Error(`Los tests de integración solo corren contra la base local (127.0.0.1:54329): ${name} no lo es`);
   }
 }
 
@@ -77,9 +77,20 @@ export async function deleteBarbershop(id: string | undefined) {
  * Devuelve sus credenciales. Borrar con deleteUser al terminar.
  */
 export async function createTestAdmin(barbershopId: string, email: string, password = "Clave-De-Prueba-2030") {
-  // Misma alta que scripts/create-barbershop.mts.
-  const userId = await insertAdminUser(ownerDb, { email, passwordHash: await hashPassword(password), barbershopId });
-  return { userId, email, password };
+  // Misma alta que scripts/create-barbershop.mts, en una transacción: si falla, no deja usuarios huérfanos.
+  const passwordHash = await hashPassword(password);
+  const client = await ownerDb.connect();
+  try {
+    await client.query("begin");
+    const userId = await insertAdminUser(client, { email, passwordHash, barbershopId });
+    await client.query("commit");
+    return { userId, email, password };
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /** Borra un usuario de prueba (sesiones, cuenta y perfil caen en cascada). */

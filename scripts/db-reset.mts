@@ -27,6 +27,23 @@ function psqlAsPostgres(sql: string, database = "postgres") {
   });
 }
 
+/** Valor de app.env en la base barberias del contenedor ('' si no existe la base o no tiene la marca). */
+function envMark(): string {
+  try {
+    return execFileSync(
+      "docker",
+      [...COMPOSE, "exec", "-T", "-u", "postgres", "db", "psql", "-tA", "-d", "barberias", "-c", "select current_setting('app.env', true)"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+    ).trim();
+  } catch {
+    return "";
+  }
+}
+
+// La marca de la base es el criterio "solo local" (db/init/roles.sh, paso 7); host y puerto son una
+// comprobación extra. Se mira antes de borrar nada (revisión spec 005, SEC-016 y MAINT-101).
+if (envMark() !== "local") fail("La base del contenedor no tiene la marca app.env = 'local'. No se recrea nada.");
+
 console.log("1/3 Recreando la base barberias…");
 psqlAsPostgres("drop database if exists barberias with (force)");
 psqlAsPostgres("create database barberias");
@@ -40,8 +57,10 @@ console.log("2/3 Migraciones (dbmate)…");
 execFileSync("docker", [...COMPOSE, "run", "--rm", "migrate", "up"], { stdio: "inherit" });
 
 console.log("3/3 Datos de demostración (db/seed.sql)…");
-// Como db_owner; app.env=local es la llave que exige el propio seed para cargarse.
-const seed = `set app.env = 'local';\nset role db_owner;\n${readFileSync("db/seed.sql", "utf8")}`;
+// Como db_owner. El seed comprueba la marca que roles.sh puso en la base recién creada, no una que
+// fije este script (revisión spec 005, MAINT-101).
+if (envMark() !== "local") fail("roles.sh no puso la marca app.env = 'local' en la base nueva (¿falta BARBERIAS_ENV en compose.dev.yml?).");
+const seed = `set role db_owner;\n${readFileSync("db/seed.sql", "utf8")}`;
 execFileSync(
   "docker",
   [...COMPOSE, "exec", "-T", "-u", "postgres", "db", "psql", "-v", "ON_ERROR_STOP=1", "-q", "-d", "barberias", "-f", "-"],

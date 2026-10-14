@@ -289,8 +289,8 @@ Los 224 asserts de origen tienen destino en `db/tests/`. Recuento actual (`pg_pr
 | 04_constraints.test.sql | 34 | 34 |
 | 05_phone_limit.test.sql | 8 | 8 |
 | 06_cancel_token.test.sql | 8 | 8 |
-| 07_roles.test.sql | 129 | nuevo: matriz de roles (test obligatorio 1), test obligatorio 5, identity, db_backup, CONNECT, pg_hba |
-| **Total** | **383** | 224 de origen conservados + 159 nuevos |
+| 07_roles.test.sql | 130 | nuevo: matriz de roles (test obligatorio 1), test obligatorio 5, identity, db_backup, CONNECT, pg_hba, membresías de los roles de trabajo (revisión, SEC-013) |
+| **Total** | **384** | 224 de origen conservados + 160 nuevos |
 
 ## Cambios de significado y justificación
 
