@@ -46,7 +46,7 @@ SaaS multi-tenant de reservas para barberías, en fase de MVP (ADR-010): Next.js
    - `Arquitectura/modelo-de-datos.md` y `Arquitectura/despliegue.md`: el cambio debe coincidir con lo documentado, o la documentación debe actualizarse (la regla del proyecto es que el vault refleje lo que existe en el código).
    - `Estado-actual.md` y `Pendientes.md`: fase actual y checklist de calidad.
 3. Convenciones ya establecidas en el código (nombres, estructura de carpetas, manejo de errores, esquemas Zod). Aplícalas como criterio, no tu preferencia personal.
-4. Migraciones en `db/migrations/` (mientras dure la migración de ADR-017, las antiguas en `supabase/migrations/`).
+4. Migraciones en `db/migrations/`.
 5. Si no hay ADR ni documentación de arquitectura que cubran el cambio, dilo explícitamente en `coverage` y evalúa contra principios generales (SOLID, alta cohesión, bajo acoplamiento), aclarando que es una baseline genérica y no una verificación de conformidad con un diseño acordado.
 
 ## Metodología

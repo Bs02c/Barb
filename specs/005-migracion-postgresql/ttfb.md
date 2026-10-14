@@ -17,6 +17,20 @@ Misma máquina (Windows 11, proyecto en OneDrive), con la app y la base en local
 
 Referencia (media de las medianas): `/reservar` ≈ 20.3 ms y `/admin` ≈ 88.3 ms.
 
-## Después (PostgreSQL propio)
+## Después (PostgreSQL propio, 2026-10-13, rama `005-migracion-postgresql` tras quitar Supabase)
 
-Pendiente (T048).
+| Ruta | Ejecución | Mediana (ms) | p90 (ms) |
+|---|---|---|---|
+| `/reservar` | 1 | 21.5 | 23.5 |
+| `/reservar` | 2 | 14.3 | 15.9 |
+| `/admin` | 1 | 29.0 | 34.5 |
+| `/admin` | 2 | 26.8 | 29.0 |
+
+## Comparación (media de las medianas)
+
+| Ruta | Antes | Después | Cambio |
+|---|---|---|---|
+| `/reservar` | 20.3 ms | 17.9 ms | −12 % |
+| `/admin` | 88.3 ms | 27.9 ms | −68 % |
+
+SC-005 (no empeorar más de un 10 %): **cumple**. El panel mejora mucho porque antes cada petición pasaba por GoTrue (validar la sesión) y por PostgREST (cada consulta por HTTP). Ahora la sesión se verifica con una consulta y los datos van por una conexión directa, con el perfil y la barbería en una sola consulta. Es una medición local; en el VPS se suma la latencia de red Colombia→Alemania, igual para ambos casos.

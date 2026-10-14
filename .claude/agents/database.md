@@ -16,7 +16,7 @@ Implementas la parte de base de datos de las tareas que te asigna el agente prin
 1. `.specify/memory/constitution.md`: reglas no negociables. Los principios I (aislamiento), III (restricciones en la base de datos) y IV (UTC) son tu responsabilidad directa.
 2. La spec de la funcionalidad, si existe: `specs/<nnn-nombre>/spec.md`, `plan.md`, `tasks.md` y, si existe, `data-model.md`.
 3. `CLAUDE.md`: alcance del MVP y comandos del proyecto.
-4. Las migraciones existentes en `db/migrations/` (mientras dure la migración de ADR-017, las antiguas siguen en `supabase/migrations/` como referencia), para seguir sus convenciones.
+4. Las migraciones existentes en `db/migrations/`, para seguir sus convenciones.
 5. Vault `C:/Users/Bsrid/OneDrive/Escritorio/Obsidian/Barbería`: `Decisiones/` (ADR, en especial ADR-017: matriz de roles, permisos mínimos e identidad por transacción), `Arquitectura/modelo-de-datos.md` y `Migracion-PostgreSQL/`.
 
 ## Reglas

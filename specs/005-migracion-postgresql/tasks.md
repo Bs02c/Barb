@@ -348,18 +348,18 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
 
 ## Fase 7: limpieza, documentación y cierre
 
-- [ ] T046 [principal] Quitar Supabase:
+- [X] T046 [principal] Quitar Supabase:
   - `npm uninstall @supabase/ssr @supabase/supabase-js supabase`;
   - borrar `supabase/`, `src/lib/supabase/` y `src/lib/database.types.ts`;
   - quitar las variables de Supabase de `.env.example`;
   - quitar el script `db:types`;
   - `git grep -i supabase -- ':!specs/00[1-4]*' ':!*.md'` vacío (SC-007).
   - `npx supabase stop` antes, si sigue en marcha.
-- [ ] T047 [principal] Verificación completa: `npm run lint`, `typecheck`, `test`, `db:reset`, `test:db`, `test:integration`, `test:e2e` y `build`. Todo en verde; anotar los recuentos (unitarios, asserts pgTAP, integración, E2E).
-- [ ] T048 [principal] Medición posterior: `npm run build && npm run start` y `npm run perf:ttfb`.
+- [X] T047 [principal] Verificación completa: `npm run lint`, `typecheck`, `test`, `db:reset`, `test:db`, `test:integration`, `test:e2e` y `build`. Todo en verde; anotar los recuentos (unitarios, asserts pgTAP, integración, E2E).
+- [X] T048 [principal] Medición posterior: `npm run build && npm run start` y `npm run perf:ttfb`.
   - Anotar en `ttfb.md` la sección "Después" y la comparación.
   - Si empeora más de un 10 % (SC-005), investigar antes de cerrar (p. ej. `withService` en paralelo o tamaño del pool).
-- [ ] T049 [P] [principal] `CLAUDE.md`: reescribir stack, comandos, entornos (ADR-017 §7), estructura (`db/`, `src/lib/db/`, `src/lib/auth/`, `compose.dev.yml`), variables y "Antes de dar una tarea por terminada" (sin `db:types`).
+- [X] T049 [P] [principal] `CLAUDE.md`: reescribir stack, comandos, entornos (ADR-017 §7), estructura (`db/`, `src/lib/db/`, `src/lib/auth/`, `compose.dev.yml`), variables y "Antes de dar una tarea por terminada" (sin `db:types`).
   - Sin rastro de Supabase salvo en la historia.
 - [ ] T050 [P] [principal] Vault:
   - ADR-001/002/003/005/007/008/011/013/014/016 con estado "modificado por ADR-017";

@@ -55,7 +55,7 @@ Realtime, métricas, colas y recordatorios están fuera del MVP (`Roadmap.md` de
 2. Vault de Obsidian, `C:/Users/Bsrid/OneDrive/Escritorio/Obsidian/Barbería`:
    - `Decisiones/` (ADR-001 en adelante): decisiones vigentes, como la exclusion constraint (ADR-006) y el aislamiento por `barbershop_id` (ADR-001). Verifica conformidad en vez de proponer una alternativa desde cero.
    - `Arquitectura/modelo-de-datos.md` y `Arquitectura/despliegue.md`.
-3. Migraciones en `db/migrations/` (mientras dure la migración de ADR-017, las antiguas en `supabase/migrations/`): son el esquema real de tablas, índices y políticas RLS. Si no puedes confirmar los índices desde el cambio, márcalo como "verificar contra el esquema real" en vez de asumir.
+3. Migraciones en `db/migrations/`: son el esquema real de tablas, índices y políticas RLS. Si no puedes confirmar los índices desde el cambio, márcalo como "verificar contra el esquema real" en vez de asumir.
 4. Requisitos no funcionales de rendimiento: en este proyecto no hay SLA escrito. Si no hay volumen esperado ni objetivo de latencia en `CLAUDE.md` ni en el vault, dilo en `coverage` y aplica el criterio por defecto: cualquier operación peor que O(n log n) sobre una colección que puede crecer sin límite conocido, o cualquier I/O dentro de un loop, es hallazgo salvo justificación explícita en el código. Para el volumen, toma como referencia razonable una barbería de pocos barberos con cientos de citas al mes y una plataforma con decenas o cientos de barberías, salvo que el vault diga otra cosa.
 5. Métricas o benchmarks existentes en el repo (si los hay).
 

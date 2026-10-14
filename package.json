@@ -14,7 +14,6 @@
     "db:reset": "node --env-file=.env.local scripts/db-reset.mts",
     "test:integration": "vitest run --config vitest.integration.config.mts",
     "test:e2e": "playwright test",
-    "db:types": "supabase gen types typescript --local > src/lib/database.types.ts",
     "barbershop:create": "node --env-file=.env.local scripts/create-barbershop.mts",
     "perf:ttfb": "node scripts/measure-ttfb.mjs",
     "db:stop": "docker compose -f compose.dev.yml stop db",
@@ -22,8 +21,6 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
-    "@supabase/ssr": "^0.12.7",
-    "@supabase/supabase-js": "^2.117.2",
     "better-auth": "1.7.7",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
@@ -47,7 +44,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.8",
-    "supabase": "^2.119.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^5.0.3"

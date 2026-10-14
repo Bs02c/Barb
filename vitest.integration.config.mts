@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import { loadEnv } from "vite";
 import { defineConfig } from "vitest/config";
 
-// Tests que necesitan Supabase local en marcha (npm run db:start).
+// Tests que necesitan la base local en marcha (npm run db:start y npm run db:reset).
 // Leen las claves de .env.local, que apunta siempre a la base local (ADR-014).
 export default defineConfig({
   resolve: {
