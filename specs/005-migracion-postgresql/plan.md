@@ -40,7 +40,7 @@
 
 **Escala**: la del MVP (decenas de barberías, cientos de citas al mes).
 
-## Decisiones que necesitan aprobación del usuario
+## Decisiones aprobadas por el usuario (2026-10-13)
 
 | # | Decisión | Por qué | Qué cambia |
 |---|---|---|---|
@@ -48,7 +48,7 @@
 | **D2** | En **desarrollo local**, `compose.dev.yml` publica la base solo en `127.0.0.1:54329`. En el VPS, nunca `ports:` | La app corre en el host con `npm run dev` y necesita llegar a la base. Meter la app en Docker en Windows sobre OneDrive sería lento | Enmienda **PATCH** de la constitución (1.2.1): "Publicar el puerto de PostgreSQL (`ports:`) **en un servidor**; en desarrollo local solo en `127.0.0.1`" |
 | **D3** | El login usa la ruta HTTP de Better Auth (`fetch` desde el formulario) y no `auth.api` desde una server action. Se usa `nextCookies()` | El límite de intentos de Better Auth solo se aplica en su manejador HTTP (research §2). `nextCookies` es una ayuda de integración, no un plugin de funcionalidad | Aclaración del ADR-017 §5 ("sin plugins" = sin plugins de funcionalidad). El formulario de login pasa a ser de cliente; textos y comportamiento iguales |
 
-Mientras no se aprueben, las tareas que dependen de ellas no empiezan.
+Aplicadas: constitución 1.2.1 (D2) y enmienda 1 del ADR-017 (D1, D3).
 
 ## Verificación de la constitución (1.2.0)
 
@@ -62,14 +62,14 @@ Mientras no se aprueben, las tareas que dependen de ellas no empiezan.
 | VI. Datos personales | Logs de PostgreSQL `terse`, sin parámetros y sin sentencia en el error. `toDbError` elimina `message` y `detail` (el mensaje de Drizzle incluye los parámetros) ✅ |
 | VII. Simplicidad | 3 dependencias nuevas a cambio de 3 eliminadas, justificadas en el ADR-017. Sin servicios permanentes nuevos: `migrate` es bajo demanda ✅ |
 | VIII. Portabilidad | Todo en Compose. Limpieza de sesiones en el cron de respaldos, sin `pg_cron` ✅ |
-| Nunca: `ports:` | ⚠️ **D2**. Solo en el Compose de desarrollo y en `127.0.0.1` |
+| Nunca: `ports:` en un servidor | Solo en el Compose de desarrollo y en `127.0.0.1` (D2, constitución 1.2.1) ✅ |
 | Nunca: cambiar el esquema fuera de SQL | dbmate como única vía; `drizzle-kit` ni se instala ✅ |
 | Nunca: editar migraciones aplicadas | Excepción única: `0001_baseline.sql` sustituye a las 6 de Supabase ✅ |
 | Nunca: `trust` | `pg_hba.conf` propio y test ✅ |
 | Nunca: logs con valores | `postgresql.conf` (data-model.md) ✅ |
 | Preguntar primero | Dependencias y esquema: aprobados en el ADR-017. D1–D3 se preguntan con este plan ✅ |
 
-**Resultado**: pasa, condicionado a D2 (enmienda PATCH) y a la aprobación de D1 y D3.
+**Resultado**: pasa (D1–D3 aprobadas; constitución 1.2.1).
 
 ## Estructura del código
 
