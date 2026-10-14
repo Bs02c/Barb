@@ -38,3 +38,32 @@ export function resolveTenant(host: string | null, rootDomain: string): TenantRe
   }
   return { kind: "tenant", subdomain };
 }
+
+/** Prefijo interno de las páginas de cada barbería: labarberia.dominio/x → /s/labarberia/x. */
+export const TENANT_PREFIX = "/s";
+const AUTH_API_PREFIX = "/api/auth";
+
+export type ProxyAction =
+  | { kind: "rewrite"; path: string } // página de una barbería
+  | { kind: "next" } // seguir sin cambios (dominio raíz, o Better Auth desde una barbería)
+  | { kind: "not-found" };
+
+const isUnder = (pathname: string, prefix: string) => pathname === prefix || pathname.startsWith(`${prefix}/`);
+
+/**
+ * Qué hace el proxy con una petición (lógica pura de src/proxy.ts):
+ * - subdominio de barbería: /api/auth/* sigue sin reescribir (Better Auth); lo demás va a /s/<barbería>/…;
+ * - dominio raíz: /s/… y /api/auth/* no existen (solo se alcanzan por subdominio); lo demás sigue;
+ * - host ajeno o subdominio inválido: 404.
+ */
+export function proxyAction(host: string | null, pathname: string, rootDomain: string): ProxyAction {
+  const tenant = resolveTenant(host, rootDomain);
+  if (tenant.kind === "tenant") {
+    if (isUnder(pathname, AUTH_API_PREFIX)) return { kind: "next" };
+    return { kind: "rewrite", path: `${TENANT_PREFIX}/${tenant.subdomain}${pathname}` };
+  }
+  if (tenant.kind === "root" && !isUnder(pathname, TENANT_PREFIX) && !isUnder(pathname, AUTH_API_PREFIX)) {
+    return { kind: "next" };
+  }
+  return { kind: "not-found" };
+}

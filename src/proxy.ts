@@ -1,13 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { refreshSession } from "@/lib/supabase/proxy";
-import { resolveTenant, ROOT_DOMAIN } from "@/lib/tenant";
+import { proxyAction, ROOT_DOMAIN } from "@/lib/tenant";
 
 // Next.js 16 llama "proxy" a lo que antes era middleware.
 // Traduce el subdominio a una ruta interna: labarberia.midominio.com/x → /s/labarberia/x.
-// Aquí no se consulta la base de datos (el proxy no es para cargar datos):
-// la página de /s/[subdomain] comprueba si la barbería existe y está activa.
-const TENANT_PREFIX = "/s";
-const ADMIN_PATH = "/admin";
+// Aquí no se consulta la base de datos ni la sesión (el proxy no es para cargar datos): la página de
+// /s/[subdomain] comprueba si la barbería existe y está activa, y el panel verifica la sesión contra
+// la base en cada petición (spec 005, FR-018).
+// /api/auth/* (Better Auth) pasa sin reescribir, pero solo desde el subdominio de una barbería: la
+// cookie de sesión es de ese subdominio (spec 005, research §6).
 
 // Ruta inexistente: Next.js responde con la página 404 y estado 404.
 function notFound(request: NextRequest) {
@@ -16,24 +16,16 @@ function notFound(request: NextRequest) {
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  const tenant = resolveTenant(request.headers.get("host"), ROOT_DOMAIN);
+  const action = proxyAction(request.headers.get("host"), pathname, ROOT_DOMAIN);
 
-  if (tenant.kind === "tenant") {
-    const target = new URL(`${TENANT_PREFIX}/${tenant.subdomain}${pathname}${search}`, request.url);
-
-    // Solo el panel usa sesión: allí se refresca; la web pública no la necesita.
-    if (pathname === ADMIN_PATH || pathname.startsWith(`${ADMIN_PATH}/`)) {
-      return refreshSession(request, () => NextResponse.rewrite(target, { request }));
-    }
-    return NextResponse.rewrite(target);
+  switch (action.kind) {
+    case "rewrite":
+      return NextResponse.rewrite(new URL(`${action.path}${search}`, request.url));
+    case "next":
+      return NextResponse.next();
+    case "not-found":
+      return notFound(request);
   }
-
-  // Las rutas internas /s/... solo se alcanzan a través de un subdominio.
-  if (tenant.kind === "root" && pathname !== TENANT_PREFIX && !pathname.startsWith(`${TENANT_PREFIX}/`)) {
-    return NextResponse.next();
-  }
-
-  return notFound(request);
 }
 
 export const config = {

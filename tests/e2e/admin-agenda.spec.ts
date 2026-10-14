@@ -1,22 +1,12 @@
 import { randomUUID } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "../../src/lib/database.types";
+import { insert, ownerDb, query } from "./helpers/db";
 import { addDaysToLocalDate, localDateTimeToUtc, toLocalDate } from "../../src/lib/time";
 
 // Agenda del admin (fase 6): ver la cita de un día, cancelarla y volver a verla cancelada.
-// Usa el admin de demostración del seed local (supabase/seed.sql; la contraseña solo existe en
-// local, ADR-014) y borra la cita que crea. Solo corre contra Supabase local.
-process.loadEnvFile(".env.local");
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const secretKey = process.env.SUPABASE_SECRET_KEY;
-if (!url || !["127.0.0.1", "localhost"].includes(new URL(url).hostname)) {
-  throw new Error("Este test solo corre contra Supabase local: revisa .env.local"); // ADR-014
-}
-if (!secretKey) throw new Error("Falta SUPABASE_SECRET_KEY en .env.local");
-
-const db = createClient<Database>(url, secretKey, { auth: { persistSession: false } });
+// Usa el admin de demostración del seed local (db/seed.sql; la contraseña solo existe en
+// local, ADR-014) y borra la cita que crea. Solo corre contra la base local.
 
 const TZ = "America/Bogota";
 const BARBERSHOP = "11111111-1111-4111-8111-111111111111"; // labarberia (seed)
@@ -32,7 +22,7 @@ const day = addDaysToLocalDate(toLocalDate(new Date(), TZ), 2);
 
 test.beforeAll(async () => {
   const startsAt = localDateTimeToUtc(`${day}T10:00`, TZ);
-  const { error } = await db.from("appointments").insert({
+  await insert("appointments", {
     barbershop_id: BARBERSHOP,
     barber_id: BARBER,
     service_id: SERVICE,
@@ -45,12 +35,10 @@ test.beforeAll(async () => {
     customer_email: customerEmail,
     data_consent_at: new Date().toISOString(),
   });
-  if (error) throw error;
 });
 
 test.afterAll(async () => {
-  const { error } = await db.from("appointments").delete().eq("barbershop_id", BARBERSHOP).eq("customer_email", customerEmail);
-  if (error) throw error;
+  await ownerDb.query("delete from public.appointments where barbershop_id = $1 and customer_email = $2", [BARBERSHOP, customerEmail]);
 });
 
 async function expectNoAxeViolations(page: Page) {
@@ -64,7 +52,7 @@ async function login(page: Page) {
   await page.getByLabel("Contraseña").fill(ADMIN_PASSWORD);
   await page.waitForLoadState("networkidle"); // formulario hidratado antes de enviar
   await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page.getByRole("heading", { name: "Agenda" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Agenda" })).toBeVisible({ timeout: 20_000 }); // la primera compilación de /admin en desarrollo es lenta
 }
 
 for (const [label, viewport] of [
@@ -97,8 +85,8 @@ for (const [label, viewport] of [
       await expect(visible("Cancelada")).toBeVisible();
       await expectNoAxeViolations(page);
 
-      const { data } = await db.from("appointments").select("status").eq("customer_email", customerEmail).single();
-      expect(data?.status).toBe("cancelled");
+      const [row] = await query<{ status: string }>("select status from public.appointments where customer_email = $1", [customerEmail]);
+      expect(row?.status).toBe("cancelled");
     });
   });
 }
@@ -108,4 +96,14 @@ test("un parámetro de día inválido muestra la agenda de hoy sin error", async
   await page.goto("/admin?dia=basura&barbero=no-es-uuid");
   await expect(page.getByRole("heading", { name: "Agenda" })).toBeVisible();
   await expect(page.getByText(/error/i)).toHaveCount(0);
+});
+
+test("el admin de otra barbería no entra al panel de esta", async ({ page }) => {
+  await page.goto("http://elcorte.localhost:3000/admin/login");
+  await page.getByLabel("Correo").fill(ADMIN_EMAIL);
+  await page.getByLabel("Contraseña").fill(ADMIN_PASSWORD);
+  await page.waitForLoadState("networkidle"); // formulario hidratado antes de enviar
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page.getByText("Esta cuenta no tiene acceso al panel de esta barbería.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Agenda" })).toHaveCount(0);
 });

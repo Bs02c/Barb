@@ -1,6 +1,8 @@
 import "server-only";
+import { and, eq } from "drizzle-orm";
 import type { PublicBarbershop } from "@/lib/barbershops";
-import { createServiceClient } from "@/lib/supabase/service";
+import { withService } from "@/lib/db/client";
+import { appointments, barbers, services } from "@/lib/db/schema";
 import { formatDateTime, formatPrice } from "@/lib/time";
 import type { CancellationDetails, CancellationView } from "./cancellation-state";
 import { cancelTokenSchema } from "./schemas";
@@ -11,25 +13,36 @@ import { hashToken } from "./token";
 
 /** Cita de la barbería con ese token, o null. Nombres de servicio y barbero aunque estén inactivos. */
 export async function findByToken(barbershop: PublicBarbershop, token: string) {
-  const { data, error } = await createServiceClient()
-    .from("appointments")
-    .select("starts_at, status, service_duration_minutes, service_price, services(name), barbers(name)")
-    .eq("barbershop_id", barbershop.id)
-    .eq("cancel_token_hash", hashToken(token))
-    .maybeSingle();
-  if (error) throw error;
-  return data;
+  // Una sola sentencia con los nombres por LEFT JOIN (sin N+1). El join por id basta: la FK compuesta
+  // garantiza que barbero y servicio son de la misma barbería que la cita.
+  const [row] = await withService((tx) =>
+    tx
+      .select({
+        startsAt: appointments.startsAt,
+        status: appointments.status,
+        serviceDurationMinutes: appointments.serviceDurationMinutes,
+        servicePrice: appointments.servicePrice,
+        serviceName: services.name,
+        barberName: barbers.name,
+      })
+      .from(appointments)
+      .leftJoin(services, eq(services.id, appointments.serviceId))
+      .leftJoin(barbers, eq(barbers.id, appointments.barberId))
+      .where(and(eq(appointments.barbershopId, barbershop.id), eq(appointments.cancelTokenHash, hashToken(token))))
+      .limit(1),
+  );
+  return row ?? null;
 }
 
 type FoundAppointment = NonNullable<Awaited<ReturnType<typeof findByToken>>>;
 
 function toDetails(appointment: FoundAppointment, barbershop: PublicBarbershop): CancellationDetails {
   return {
-    serviceName: appointment.services?.name ?? "",
-    barberName: appointment.barbers?.name ?? "",
-    startsAtLabel: formatDateTime(appointment.starts_at, barbershop.timezone),
-    durationMinutes: appointment.service_duration_minutes,
-    priceLabel: formatPrice(appointment.service_price),
+    serviceName: appointment.serviceName ?? "",
+    barberName: appointment.barberName ?? "",
+    startsAtLabel: formatDateTime(appointment.startsAt, barbershop.timezone),
+    durationMinutes: appointment.serviceDurationMinutes,
+    priceLabel: formatPrice(appointment.servicePrice),
   };
 }
 
@@ -45,7 +58,7 @@ export async function getCancellation(
 
   const details = toDetails(appointment, barbershop);
   if (appointment.status === "cancelled") return { status: "already_cancelled", details };
-  if (new Date(appointment.starts_at) <= now) return { status: "past", details };
+  if (appointment.startsAt <= now) return { status: "past", details };
   return { status: "active", details };
 }
 

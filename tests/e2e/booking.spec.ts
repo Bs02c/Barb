@@ -1,21 +1,11 @@
 import { randomUUID } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "../../src/lib/database.types";
+import { ownerDb } from "./helpers/db";
 
 // Reserva pública completa en vista móvil, con escaneo de accesibilidad en cada paso
 // (spec 002, FR-018 y SC-006). Usa la barbería de demostración del seed (labarberia) y
-// borra la cita que crea. Solo corre contra Supabase local (ADR-014).
-process.loadEnvFile(".env.local");
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const secretKey = process.env.SUPABASE_SECRET_KEY;
-if (!url || !["127.0.0.1", "localhost"].includes(new URL(url).hostname)) {
-  throw new Error("Este test solo corre contra Supabase local: revisa .env.local"); // ADR-014
-}
-if (!secretKey) throw new Error("Falta SUPABASE_SECRET_KEY en .env.local");
-
-const db = createClient<Database>(url, secretKey, { auth: { persistSession: false } });
+// borra la cita que crea. Solo corre contra la base local (ADR-014).
 
 // Datos únicos por ejecución: el correo identifica la cita a borrar y el número evita el tope de 2 citas.
 const email = `e2e-${randomUUID().slice(0, 8)}@example.com`;
@@ -24,14 +14,10 @@ const phone = `3${String(Math.floor(Math.random() * 1e9)).padStart(9, "0")}`;
 test.use({ viewport: { width: 375, height: 812 } });
 
 test.afterAll(async () => {
-  const { data: barbershop } = await db.from("barbershops").select("id").eq("subdomain", "labarberia").single();
-  if (!barbershop) return;
-  const { error } = await db
-    .from("appointments")
-    .delete()
-    .eq("barbershop_id", barbershop.id)
-    .eq("customer_email", email);
-  if (error) throw error;
+  await ownerDb.query(
+    "delete from public.appointments where customer_email = $1 and barbershop_id = (select id from public.barbershops where subdomain = 'labarberia')",
+    [email],
+  );
 });
 
 async function expectNoAxeViolations(page: Page) {

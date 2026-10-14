@@ -13,10 +13,12 @@ describe("token de cancelación", () => {
     expect(a).not.toBe(b);
   });
 
-  it("hashToken devuelve \\x + 64 hex y es determinista", () => {
-    expect(hashToken("a".repeat(43))).toMatch(/^\\x[0-9a-f]{64}$/);
-    expect(hashToken("a".repeat(43))).toBe(hashToken("a".repeat(43)));
-    expect(hashToken("a".repeat(43))).not.toBe(hashToken("b".repeat(43)));
+  it("hashToken devuelve 32 bytes y es determinista", () => {
+    const hash = hashToken("a".repeat(43));
+    expect(Buffer.isBuffer(hash)).toBe(true);
+    expect(hash).toHaveLength(32);
+    expect(hash.equals(hashToken("a".repeat(43)))).toBe(true);
+    expect(hash.equals(hashToken("b".repeat(43)))).toBe(false);
   });
 
   it("el esquema rechaza formatos inválidos", () => {

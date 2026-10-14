@@ -3,21 +3,11 @@ import { readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "../../src/lib/database.types";
+import { ownerDb } from "./helpers/db";
 
 // Cancelación con enlace seguro en vista móvil (spec 003, US1 y US2). Reserva en labarberia,
 // lee el correo del .outbox/ (EMAIL_TRANSPORT=outbox en playwright.config.ts), cancela y limpia.
-// Solo corre contra Supabase local (ADR-014).
-process.loadEnvFile(".env.local");
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const secretKey = process.env.SUPABASE_SECRET_KEY;
-if (!url || !["127.0.0.1", "localhost"].includes(new URL(url).hostname)) {
-  throw new Error("Este test solo corre contra Supabase local: revisa .env.local"); // ADR-014
-}
-if (!secretKey) throw new Error("Falta SUPABASE_SECRET_KEY en .env.local");
-
-const db = createClient<Database>(url, secretKey, { auth: { persistSession: false } });
+// Solo corre contra la base local (ADR-014).
 const outboxDir = path.resolve(".outbox");
 
 const email = `e2e-${randomUUID().slice(0, 8)}@example.com`;
@@ -43,14 +33,10 @@ async function outboxFiles(): Promise<{ file: string; mail: { to: string; text: 
 
 test.afterAll(async () => {
   for (const { file } of await outboxFiles()) await rm(file, { force: true });
-  const { data: barbershop } = await db.from("barbershops").select("id").eq("subdomain", "labarberia").single();
-  if (!barbershop) return;
-  const { error } = await db
-    .from("appointments")
-    .delete()
-    .eq("barbershop_id", barbershop.id)
-    .eq("customer_email", email);
-  if (error) throw error;
+  await ownerDb.query(
+    "delete from public.appointments where customer_email = $1 and barbershop_id = (select id from public.barbershops where subdomain = 'labarberia')",
+    [email],
+  );
 });
 
 async function expectNoAxeViolations(page: Page) {

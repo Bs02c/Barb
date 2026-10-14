@@ -1,29 +1,27 @@
 "use server";
 
-import type { PostgrestError } from "@supabase/supabase-js";
+import { and, eq, gt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { z } from "zod";
 import type { ActionState } from "@/lib/admin/action-state";
+import { activeSchema, barberSchema, blockSchema, idSchema, scheduleSlotSchema, serviceSchema } from "@/lib/admin/schemas";
 import { getAdminContext, type AdminBarbershop } from "@/lib/admin/session";
-import {
-  activeSchema,
-  barberSchema,
-  blockSchema,
-  idSchema,
-  loginSchema,
-  scheduleSlotSchema,
-  serviceSchema,
-} from "@/lib/admin/schemas";
-import { createClient } from "@/lib/supabase/server";
+import { getAuth } from "@/lib/auth/auth";
+import type { VerifiedSession } from "@/lib/auth/session";
+import { withAdmin, type Tx } from "@/lib/db/client";
+import { toDbError } from "@/lib/db/errors";
+import { appointments, barberBlocks, barberSchedules, barbers, services } from "@/lib/db/schema";
+import { logSafeError } from "@/lib/log";
 import { localDateTimeToUtc } from "@/lib/time";
 import { toFieldErrors } from "@/lib/validation";
 
 // Server actions del panel. Todas:
 // 1. comprueban la sesión y que el admin pertenece a la barbería del subdominio;
 // 2. validan con los esquemas Zod compartidos;
-// 3. escriben con la sesión del admin (RLS decide; nunca con la clave secreta);
-// 4. traducen los errores de Postgres a mensajes en español.
+// 3. escriben con withAdmin, la identidad del admin (RLS decide; nunca con withService);
+// 4. traducen los errores de Postgres a mensajes en español (por código, con toDbError).
 // Uso desde un formulario: `useActionState(createBarber.bind(null, subdomain), initialState)`,
 // con `initialState` de src/lib/admin/action-state.ts.
 
@@ -38,8 +36,8 @@ function invalid(error: z.ZodError): ActionState {
 }
 
 // Códigos documentados en specs/001-modelo-datos-rls/contracts/acceso-por-rol.md.
-function fromDatabase(error: PostgrestError): ActionState {
-  switch (error.code) {
+function fromDatabase(error: unknown): ActionState {
+  switch (toDbError(error)?.code) {
     case "23P01":
       return { ok: false, message: "Ese tramo se cruza con otro del mismo barbero ese día." };
     case "23503":
@@ -52,16 +50,26 @@ function fromDatabase(error: PostgrestError): ActionState {
     case "42501":
       return { ok: false, message: "No tienes permiso para hacer esto." };
     default:
-      console.error("Error de base de datos en el panel", { code: error.code, message: error.message });
+      logSafeError("Error de base de datos en el panel", error);
       return { ok: false, message: "No se pudo guardar. Inténtalo de nuevo." };
   }
 }
 
-/** Sesión válida de admin de esta barbería, o redirige al login. */
-async function requireAdmin(subdomain: string): Promise<AdminBarbershop> {
+/** Sesión válida de admin de esta barbería (y su identidad para withAdmin), o redirige al login. */
+async function requireAdmin(subdomain: string): Promise<{ session: VerifiedSession; barbershop: AdminBarbershop }> {
   const context = await getAdminContext(subdomain);
   if (context.status !== "ok") redirect("/admin/login");
-  return context.barbershop;
+  return { session: context.session, barbershop: context.barbershop };
+}
+
+/** Ejecuta una escritura con la identidad del admin; devuelve el error traducido o null si fue bien. */
+async function write(session: VerifiedSession, fn: (tx: Tx) => Promise<unknown>): Promise<ActionState | null> {
+  try {
+    await withAdmin(session, fn);
+    return null;
+  } catch (error) {
+    return fromDatabase(error);
+  }
 }
 
 function refresh(subdomain: string) {
@@ -72,19 +80,17 @@ function refresh(subdomain: string) {
 // Sesión
 // ---------------------------------------------------------------------------
 
-export async function signIn(subdomain: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  const parsed = parseForm(loginSchema, formData);
-  if (!parsed.success) return invalid(parsed.error);
-
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword(parsed.data);
-  // Mismo mensaje para correo inexistente y contraseña errónea: no revela qué cuentas existen.
-  if (error) return { ok: false, message: "Correo o contraseña incorrectos." };
-
+/**
+ * Segundo paso del login. El primero es el POST del formulario a /api/auth/sign-in/email (Better Auth:
+ * comprueba la contraseña, aplica el límite de intentos y fija la cookie; ADR-017, enmienda 1).
+ * Aquí se exige que la cuenta sea admin de ESTA barbería; si no, se cierra la sesión recién abierta.
+ */
+export async function confirmPanelAccess(subdomain: string): Promise<ActionState> {
   const context = await getAdminContext(subdomain);
   if (context.status !== "ok") {
-    // "local": solo esta sesión; equivocarse de subdominio no cierra su sesión en su propio panel.
-    await supabase.auth.signOut({ scope: "local" });
+    if (context.status === "anonymous") return { ok: false, message: "Correo o contraseña incorrectos." };
+    // Solo esta sesión (la de este navegador en este subdominio): no toca otras sesiones del usuario.
+    await getAuth().api.signOut({ headers: await headers() });
     return {
       ok: false,
       message:
@@ -97,8 +103,7 @@ export async function signIn(subdomain: string, _prev: ActionState, formData: Fo
 }
 
 export async function signOut() {
-  const supabase = await createClient();
-  await supabase.auth.signOut({ scope: "local" }); // solo este navegador
+  await getAuth().api.signOut({ headers: await headers() }); // solo esta sesión; borra la cookie (nextCookies)
   redirect("/admin/login");
 }
 
@@ -107,57 +112,56 @@ export async function signOut() {
 // ---------------------------------------------------------------------------
 
 export async function createBarber(subdomain: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  const barbershop = await requireAdmin(subdomain);
+  const { session, barbershop } = await requireAdmin(subdomain);
   const parsed = parseForm(barberSchema, formData);
   if (!parsed.success) return invalid(parsed.error);
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("barbers").insert({ barbershop_id: barbershop.id, ...parsed.data });
-  if (error) return fromDatabase(error);
+  const failed = await write(session, (tx) =>
+    tx.insert(barbers).values({ barbershopId: barbershop.id, name: parsed.data.name }),
+  );
+  if (failed) return failed;
   refresh(subdomain);
   return { ok: true, message: "Barbero añadido." };
 }
 
 /** formData: id, name */
 export async function renameBarber(subdomain: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireAdmin(subdomain);
+  const { session } = await requireAdmin(subdomain);
   const id = parseForm(idSchema, formData);
   const parsed = parseForm(barberSchema, formData);
   if (!id.success) return invalid(id.error);
   if (!parsed.success) return invalid(parsed.error);
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("barbers").update(parsed.data).eq("id", id.data.id);
-  if (error) return fromDatabase(error);
+  const failed = await write(session, (tx) =>
+    tx.update(barbers).set({ name: parsed.data.name }).where(eq(barbers.id, id.data.id)),
+  );
+  if (failed) return failed;
   refresh(subdomain);
   return { ok: true, message: "Barbero actualizado." };
 }
 
 /** formData: id, is_active ("true" | "false") */
 export async function setBarberActive(subdomain: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireAdmin(subdomain);
+  const { session } = await requireAdmin(subdomain);
   const parsed = parseForm(activeSchema, formData);
   if (!parsed.success) return invalid(parsed.error);
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("barbers")
-    .update({ is_active: parsed.data.is_active })
-    .eq("id", parsed.data.id);
-  if (error) return fromDatabase(error);
+  const failed = await write(session, (tx) =>
+    tx.update(barbers).set({ isActive: parsed.data.is_active }).where(eq(barbers.id, parsed.data.id)),
+  );
+  if (failed) return failed;
   refresh(subdomain);
   return { ok: true, message: parsed.data.is_active ? "Barbero activado." : "Barbero desactivado." };
 }
 
 /** formData: id. Falla con mensaje claro si tiene citas (23503). */
 export async function deleteBarber(subdomain: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireAdmin(subdomain);
+  const { session } = await requireAdmin(subdomain);
   const parsed = parseForm(idSchema, formData);
   if (!parsed.success) return invalid(parsed.error);
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("barbers").delete().eq("id", parsed.data.id);
-  if (error) return fromDatabase(error);
+  const failed = await write(session, (tx) => tx.delete(barbers).where(eq(barbers.id, parsed.data.id)));
+  if (failed) return failed;
   refresh(subdomain);
   return { ok: true, message: "Barbero eliminado." };
 }
@@ -167,57 +171,61 @@ export async function deleteBarber(subdomain: string, _prev: ActionState, formDa
 // ---------------------------------------------------------------------------
 
 export async function createService(subdomain: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  const barbershop = await requireAdmin(subdomain);
+  const { session, barbershop } = await requireAdmin(subdomain);
   const parsed = parseForm(serviceSchema, formData);
   if (!parsed.success) return invalid(parsed.error);
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("services").insert({ barbershop_id: barbershop.id, ...parsed.data });
-  if (error) return fromDatabase(error);
+  const { name, duration_minutes, price } = parsed.data;
+  const failed = await write(session, (tx) =>
+    tx.insert(services).values({ barbershopId: barbershop.id, name, durationMinutes: duration_minutes, price: String(price) }),
+  );
+  if (failed) return failed;
   refresh(subdomain);
   return { ok: true, message: "Servicio añadido." };
 }
 
 /** formData: id, name, duration_minutes, price */
 export async function updateService(subdomain: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireAdmin(subdomain);
+  const { session } = await requireAdmin(subdomain);
   const id = parseForm(idSchema, formData);
   const parsed = parseForm(serviceSchema, formData);
   if (!id.success) return invalid(id.error);
   if (!parsed.success) return invalid(parsed.error);
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("services").update(parsed.data).eq("id", id.data.id);
-  if (error) return fromDatabase(error);
+  const { name, duration_minutes, price } = parsed.data;
+  const failed = await write(session, (tx) =>
+    tx
+      .update(services)
+      .set({ name, durationMinutes: duration_minutes, price: String(price) })
+      .where(eq(services.id, id.data.id)),
+  );
+  if (failed) return failed;
   refresh(subdomain);
   return { ok: true, message: "Servicio actualizado." };
 }
 
 /** formData: id, is_active ("true" | "false") */
 export async function setServiceActive(subdomain: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireAdmin(subdomain);
+  const { session } = await requireAdmin(subdomain);
   const parsed = parseForm(activeSchema, formData);
   if (!parsed.success) return invalid(parsed.error);
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("services")
-    .update({ is_active: parsed.data.is_active })
-    .eq("id", parsed.data.id);
-  if (error) return fromDatabase(error);
+  const failed = await write(session, (tx) =>
+    tx.update(services).set({ isActive: parsed.data.is_active }).where(eq(services.id, parsed.data.id)),
+  );
+  if (failed) return failed;
   refresh(subdomain);
   return { ok: true, message: parsed.data.is_active ? "Servicio activado." : "Servicio desactivado." };
 }
 
 /** formData: id. Falla con mensaje claro si tiene citas (23503). */
 export async function deleteService(subdomain: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireAdmin(subdomain);
+  const { session } = await requireAdmin(subdomain);
   const parsed = parseForm(idSchema, formData);
   if (!parsed.success) return invalid(parsed.error);
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("services").delete().eq("id", parsed.data.id);
-  if (error) return fromDatabase(error);
+  const failed = await write(session, (tx) => tx.delete(services).where(eq(services.id, parsed.data.id)));
+  if (failed) return failed;
   refresh(subdomain);
   return { ok: true, message: "Servicio eliminado." };
 }
@@ -228,28 +236,33 @@ export async function deleteService(subdomain: string, _prev: ActionState, formD
 
 /** formData: barber_id, weekday (1–7), start_time "HH:MM", end_time "HH:MM" */
 export async function addScheduleSlot(subdomain: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  const barbershop = await requireAdmin(subdomain);
+  const { session, barbershop } = await requireAdmin(subdomain);
   const parsed = parseForm(scheduleSlotSchema, formData);
   if (!parsed.success) return invalid(parsed.error);
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("barber_schedules")
-    .insert({ barbershop_id: barbershop.id, ...parsed.data });
-  if (error) return fromDatabase(error);
+  const { barber_id, weekday, start_time, end_time } = parsed.data;
+  const failed = await write(session, (tx) =>
+    tx.insert(barberSchedules).values({
+      barbershopId: barbershop.id,
+      barberId: barber_id,
+      weekday,
+      startTime: start_time,
+      endTime: end_time,
+    }),
+  );
+  if (failed) return failed;
   refresh(subdomain);
   return { ok: true, message: "Tramo añadido." };
 }
 
 /** formData: id */
 export async function deleteScheduleSlot(subdomain: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireAdmin(subdomain);
+  const { session } = await requireAdmin(subdomain);
   const parsed = parseForm(idSchema, formData);
   if (!parsed.success) return invalid(parsed.error);
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("barber_schedules").delete().eq("id", parsed.data.id);
-  if (error) return fromDatabase(error);
+  const failed = await write(session, (tx) => tx.delete(barberSchedules).where(eq(barberSchedules.id, parsed.data.id)));
+  if (failed) return failed;
   refresh(subdomain);
   return { ok: true, message: "Tramo eliminado." };
 }
@@ -260,33 +273,33 @@ export async function deleteScheduleSlot(subdomain: string, _prev: ActionState, 
 
 /** formData: barber_id, starts_at y ends_at "YYYY-MM-DDTHH:MM" (hora local), reason opcional */
 export async function addBlock(subdomain: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  const barbershop = await requireAdmin(subdomain);
+  const { session, barbershop } = await requireAdmin(subdomain);
   const parsed = parseForm(blockSchema, formData);
   if (!parsed.success) return invalid(parsed.error);
 
   const { barber_id, starts_at, ends_at, reason } = parsed.data;
-  const supabase = await createClient();
-  const { error } = await supabase.from("barber_blocks").insert({
-    barbershop_id: barbershop.id,
-    barber_id,
-    starts_at: localDateTimeToUtc(starts_at, barbershop.timezone).toISOString(),
-    ends_at: localDateTimeToUtc(ends_at, barbershop.timezone).toISOString(),
-    reason: reason || null,
-  });
-  if (error) return fromDatabase(error);
+  const failed = await write(session, (tx) =>
+    tx.insert(barberBlocks).values({
+      barbershopId: barbershop.id,
+      barberId: barber_id,
+      startsAt: localDateTimeToUtc(starts_at, barbershop.timezone),
+      endsAt: localDateTimeToUtc(ends_at, barbershop.timezone),
+      reason: reason || null,
+    }),
+  );
+  if (failed) return failed;
   refresh(subdomain);
   return { ok: true, message: "Bloqueo añadido." };
 }
 
 /** formData: id */
 export async function deleteBlock(subdomain: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireAdmin(subdomain);
+  const { session } = await requireAdmin(subdomain);
   const parsed = parseForm(idSchema, formData);
   if (!parsed.success) return invalid(parsed.error);
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("barber_blocks").delete().eq("id", parsed.data.id);
-  if (error) return fromDatabase(error);
+  const failed = await write(session, (tx) => tx.delete(barberBlocks).where(eq(barberBlocks.id, parsed.data.id)));
+  if (failed) return failed;
   refresh(subdomain);
   return { ok: true, message: "Bloqueo eliminado." };
 }
@@ -301,23 +314,26 @@ export async function adminCancelAppointment(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireAdmin(subdomain);
+  const { session } = await requireAdmin(subdomain);
   const parsed = parseForm(idSchema, formData);
   if (!parsed.success) return invalid(parsed.error);
 
   // Una sola sentencia condicionada: RLS limita a las citas de su barbería y el servidor exige que
   // esté activa y no haya empezado. 0 filas = otra pestaña o el cliente ya la cancelaron, o ya empezó.
-  const now = new Date().toISOString();
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("appointments")
-    .update({ status: "cancelled", cancelled_at: now })
-    .eq("id", parsed.data.id)
-    .eq("status", "active")
-    .gt("starts_at", now)
-    .select("id");
-  if (error) return fromDatabase(error);
-  if (data.length === 0) return { ok: false, message: "Esta cita ya no se puede cancelar." };
+  const now = new Date();
+  let cancelled: { id: string }[];
+  try {
+    cancelled = await withAdmin(session, (tx) =>
+      tx
+        .update(appointments)
+        .set({ status: "cancelled", cancelledAt: now })
+        .where(and(eq(appointments.id, parsed.data.id), eq(appointments.status, "active"), gt(appointments.startsAt, now)))
+        .returning({ id: appointments.id }),
+    );
+  } catch (error) {
+    return fromDatabase(error);
+  }
+  if (cancelled.length === 0) return { ok: false, message: "Esta cita ya no se puede cancelar." };
   refresh(subdomain);
   return { ok: true, message: "Cita cancelada." };
 }

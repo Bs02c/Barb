@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Esquemas compartidos por los formularios (cliente) y las server actions (servidor).
-// Mismas reglas que los check de la base de datos (supabase/migrations), con mensajes en español.
+// Mismas reglas que los check de la base de datos (db/migrations), con mensajes en español.
 
 const name = z
   .string()

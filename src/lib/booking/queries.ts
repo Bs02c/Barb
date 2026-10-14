@@ -1,12 +1,14 @@
 import "server-only";
+import { and, asc, eq, gt, gte, inArray, lt } from "drizzle-orm";
 import { cache } from "react";
 import type { PublicBarbershop } from "@/lib/barbershops";
-import { createServiceClient } from "@/lib/supabase/service";
+import { withService } from "@/lib/db/client";
+import { appointments, barberBlocks, barberSchedules, barbers, services } from "@/lib/db/schema";
 import { addDaysToLocalDate, formatLocalDate, formatPrice, localDateTimeToUtc, toLocalDate } from "@/lib/time";
 import { computeAvailableSlots, HORIZON_DAYS, type AvailableSlot } from "./availability";
 import { EARLIEST } from "./schemas";
 
-// Lecturas de la reserva pública con la clave secreta (el cliente no tiene sesión).
+// Lecturas de la reserva pública con service_role, que se salta RLS (el cliente no tiene sesión).
 // Constitución I: TODA consulta filtra por barbershop.id, que viene de getPublicBarbershop(subdomain);
 // nunca de un parámetro del cliente. Los ids de servicio y barbero se buscan dentro de esa barbería.
 
@@ -19,36 +21,45 @@ export type CatalogBarber = { id: string; name: string };
  * con el mismo objeto barbershop (también cacheado por petición).
  */
 export const getBookingCatalog = cache(async (barbershop: PublicBarbershop) => {
-  const db = createServiceClient();
-  const [services, barbers, schedules] = await Promise.all([
-    db
-      .from("services")
-      .select("id, name, duration_minutes, price")
-      .eq("barbershop_id", barbershop.id)
-      .eq("is_active", true)
-      .order("name"),
-    db.from("barbers").select("id, name").eq("barbershop_id", barbershop.id).eq("is_active", true).order("name"),
-    db.from("barber_schedules").select("barber_id").eq("barbershop_id", barbershop.id),
+  // Tres lecturas en paralelo, cada una en su transacción corta (misma latencia que antes; research §9).
+  const [serviceRows, barberRows, scheduleRows] = await Promise.all([
+    withService((tx) =>
+      tx
+        .select({ id: services.id, name: services.name, durationMinutes: services.durationMinutes, price: services.price })
+        .from(services)
+        .where(and(eq(services.barbershopId, barbershop.id), eq(services.isActive, true)))
+        .orderBy(asc(services.name)),
+    ),
+    withService((tx) =>
+      tx
+        .select({ id: barbers.id, name: barbers.name })
+        .from(barbers)
+        .where(and(eq(barbers.barbershopId, barbershop.id), eq(barbers.isActive, true)))
+        .orderBy(asc(barbers.name)),
+    ),
+    withService((tx) =>
+      tx
+        .select({ barberId: barberSchedules.barberId })
+        .from(barberSchedules)
+        .where(eq(barberSchedules.barbershopId, barbershop.id)),
+    ),
   ]);
-  if (services.error) throw services.error;
-  if (barbers.error) throw barbers.error;
-  if (schedules.error) throw schedules.error;
 
-  const activeBarberIds = new Set(barbers.data.map((b) => b.id));
+  const activeBarberIds = new Set(barberRows.map((b) => b.id));
 
   return {
-    services: services.data.map(
+    services: serviceRows.map(
       (s): CatalogService => ({
         id: s.id,
         name: s.name,
-        durationMinutes: s.duration_minutes,
-        price: Number(s.price),
+        durationMinutes: s.durationMinutes,
+        price: Number(s.price), // numeric llega como texto
         priceLabel: formatPrice(s.price),
       }),
     ),
-    barbers: barbers.data as CatalogBarber[],
+    barbers: barberRows satisfies CatalogBarber[],
     /** Única regla de "se puede reservar": servicios activos y algún barbero activo con horario (MAINT-001). */
-    bookable: services.data.length > 0 && schedules.data.some((s) => activeBarberIds.has(s.barber_id)),
+    bookable: serviceRows.length > 0 && scheduleRows.some((s) => activeBarberIds.has(s.barberId)),
   };
 });
 
@@ -90,49 +101,58 @@ export async function loadSlots(
   // recorrer solo la ventana y no todo el histórico (revisión fase 4, PERF-003).
   const appointmentsFrom = new Date(windowStart.getTime() - 480 * 60_000);
 
-  const db = createServiceClient();
-  const [schedules, blocks, appointments] = await Promise.all([
-    db
-      .from("barber_schedules")
-      .select("barber_id, weekday, start_time, end_time")
-      .eq("barbershop_id", barbershop.id)
-      .in("barber_id", barberIds),
-    db
-      .from("barber_blocks")
-      .select("barber_id, starts_at, ends_at")
-      .eq("barbershop_id", barbershop.id)
-      .in("barber_id", barberIds)
-      .lt("starts_at", windowEnd.toISOString())
-      .gt("ends_at", windowStart.toISOString()),
-    db
-      .from("appointments")
-      .select("barber_id, starts_at, ends_at")
-      .eq("barbershop_id", barbershop.id)
-      .eq("status", "active")
-      .in("barber_id", barberIds)
-      .gte("starts_at", appointmentsFrom.toISOString())
-      .lt("starts_at", windowEnd.toISOString())
-      .gt("ends_at", windowStart.toISOString()),
+  const [scheduleRows, blockRows, appointmentRows] = await Promise.all([
+    withService((tx) =>
+      tx
+        .select({
+          barberId: barberSchedules.barberId,
+          weekday: barberSchedules.weekday,
+          startTime: barberSchedules.startTime,
+          endTime: barberSchedules.endTime,
+        })
+        .from(barberSchedules)
+        .where(and(eq(barberSchedules.barbershopId, barbershop.id), inArray(barberSchedules.barberId, barberIds))),
+    ),
+    withService((tx) =>
+      tx
+        .select({ barberId: barberBlocks.barberId, startsAt: barberBlocks.startsAt, endsAt: barberBlocks.endsAt })
+        .from(barberBlocks)
+        .where(
+          and(
+            eq(barberBlocks.barbershopId, barbershop.id),
+            inArray(barberBlocks.barberId, barberIds),
+            lt(barberBlocks.startsAt, windowEnd),
+            gt(barberBlocks.endsAt, windowStart),
+          ),
+        ),
+    ),
+    withService((tx) =>
+      tx
+        .select({ barberId: appointments.barberId, startsAt: appointments.startsAt, endsAt: appointments.endsAt })
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.barbershopId, barbershop.id),
+            eq(appointments.status, "active"),
+            inArray(appointments.barberId, barberIds),
+            gte(appointments.startsAt, appointmentsFrom),
+            lt(appointments.startsAt, windowEnd),
+            gt(appointments.endsAt, windowStart),
+          ),
+        ),
+    ),
   ]);
-  if (schedules.error) throw schedules.error;
-  if (blocks.error) throw blocks.error;
-  if (appointments.error) throw appointments.error;
 
-  const toRange = (r: { starts_at: string; ends_at: string }) => ({ start: new Date(r.starts_at), end: new Date(r.ends_at) });
+  const toRange = (r: { startsAt: Date; endsAt: Date }) => ({ start: r.startsAt, end: r.endsAt });
 
   return computeAvailableSlots({
     timezone: barbershop.timezone,
     now,
     durationMinutes: selection.service.durationMinutes,
     barbers: selection.barbers,
-    schedules: schedules.data.map((s) => ({
-      barberId: s.barber_id,
-      weekday: s.weekday,
-      startTime: s.start_time,
-      endTime: s.end_time,
-    })),
-    blocks: blocks.data.map((b) => ({ barberId: b.barber_id, range: toRange(b) })),
-    appointments: appointments.data.map((a) => ({ barberId: a.barber_id, range: toRange(a) })),
+    schedules: scheduleRows,
+    blocks: blockRows.map((b) => ({ barberId: b.barberId, range: toRange(b) })),
+    appointments: appointmentRows.map((a) => ({ barberId: a.barberId, range: toRange(a) })),
     fromDate,
     days,
   });

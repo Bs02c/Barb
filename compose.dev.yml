@@ -1,0 +1,73 @@
+# Base de datos de DESARROLLO LOCAL (spec 005, ADR-017). El Compose del VPS es otro (fase 7).
+# Uso: npm run db:start | npm run db:migrate | npm run db:reset | npm run test:db
+# Contraseñas: archivos en db/init/secrets/ (ignorados por git; ver db/init/secrets.example/).
+
+name: barberias-dev
+
+services:
+  db:
+    build: docker/db
+    environment:
+      POSTGRES_DB: barberias
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
+      - -c
+      - shared_buffers=128MB # local; en el VPS de 4 GB, 512MB (data-model.md)
+    secrets: [postgres_password, db_owner_password, app_login_password, auth_login_password, db_backup_password]
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./db/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./db/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./db/init/roles.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
+      - ./db/tests:/tests:ro
+    # Solo en desarrollo local y solo en 127.0.0.1 (constitución 1.2.1, D2): la app de `npm run dev`
+    # corre en el host. En un servidor la base NUNCA publica puerto.
+    ports:
+      - "127.0.0.1:54329:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d barberias"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Migraciones con dbmate como db_owner, bajo demanda: docker compose -f compose.dev.yml run --rm migrate up
+  migrate:
+    image: ghcr.io/amacneil/dbmate:2.36.0
+    profiles: ["tools"]
+    depends_on:
+      db:
+        condition: service_healthy
+    secrets: [db_owner_password]
+    environment:
+      DBMATE_MIGRATIONS_DIR: /db/migrations
+      DBMATE_NO_DUMP_SCHEMA: "true"
+      DBMATE_WAIT: "true"
+    volumes:
+      - ./db/migrations:/db/migrations:ro
+    # La URL se arma dentro del contenedor con la contraseña del secreto: ninguna contraseña en este archivo.
+    # search_path=dbmate,public: la tabla schema_migrations va al esquema dbmate (research §5).
+    entrypoint:
+      - /bin/sh
+      - -c
+      - 'export DATABASE_URL="postgres://db_owner:$$(cat /run/secrets/db_owner_password)@db:5432/barberias?sslmode=disable&search_path=dbmate,public" && exec dbmate "$$@"'
+      - dbmate
+
+volumes:
+  db-data:
+
+secrets:
+  postgres_password:
+    file: ./db/init/secrets/postgres_password
+  db_owner_password:
+    file: ./db/init/secrets/db_owner_password
+  app_login_password:
+    file: ./db/init/secrets/app_login_password
+  auth_login_password:
+    file: ./db/init/secrets/auth_login_password
+  db_backup_password:
+    file: ./db/init/secrets/db_backup_password

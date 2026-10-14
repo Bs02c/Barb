@@ -74,7 +74,7 @@ revoke execute … from public;  grant execute … to authenticated;
 
 ## Esquema `identity`
 
-Tablas de Better Auth 1.7.7, con nombres de columna por defecto. RLS activado sin políticas. Todo revocado a PUBLIC, `authenticated` y `service_role`. `auth_login` tiene SELECT, INSERT, UPDATE y DELETE en las cinco tablas.
+Tablas de Better Auth 1.7.7, con nombres de columna por defecto. RLS activado con **una sola política por tabla, `for all to auth_login using (true)`**: sin ella `auth_login` (que no es dueño ni tiene BYPASSRLS) no vería ninguna fila (corregido en la implementación, T008). Todo revocado a PUBLIC, `authenticated` y `service_role`. `auth_login` tiene SELECT, INSERT, UPDATE y DELETE en las cinco tablas.
 
 | Tabla | Columnas |
 |---|---|

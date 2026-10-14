@@ -1,27 +1,19 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getPublicBarbershop } from "@/lib/barbershops";
-import { createServiceClient } from "@/lib/supabase/service";
+import { insert, query } from "./helpers/db";
 
 // Página pública de una barbería (fase 2): solo barberías activas y solo campos públicos.
-// Usa el seed local (labarberia) y crea una barbería desactivada que borra al terminar.
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-if (!url || !["127.0.0.1", "localhost"].includes(new URL(url).hostname)) {
-  throw new Error("Este test solo corre contra Supabase local: revisa .env.local"); // ADR-014
-}
-
-const db = createServiceClient();
+// Usa el seed local (labarberia) y crea una barbería desactivada que borra al terminar
+// (como db_owner, helpers/db.ts, solo base local).
 const inactiveSubdomain = `inactiva-${randomUUID().slice(0, 8)}`;
 
 beforeAll(async () => {
-  const { error } = await db
-    .from("barbershops")
-    .insert({ name: "Barbería inactiva", subdomain: inactiveSubdomain, is_active: false });
-  if (error) throw error;
+  await insert("barbershops", { name: "Barbería inactiva", subdomain: inactiveSubdomain, is_active: false });
 });
 
 afterAll(async () => {
-  await db.from("barbershops").delete().eq("subdomain", inactiveSubdomain);
+  await query("delete from public.barbershops where subdomain = $1", [inactiveSubdomain]);
 });
 
 describe("getPublicBarbershop", () => {

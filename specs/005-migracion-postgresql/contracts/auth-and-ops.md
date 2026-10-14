@@ -9,7 +9,8 @@ betterAuth({
   baseURL: { allowedHosts: [`*.${rootHost}`], protocol: isLocal ? "http" : "https" },
   trustedOrigins: [`${proto}://*.${rootDomain}`],
   emailAndPassword: { enabled: true, disableSignUp: true },
-  disabledPaths: [/* todo salvo /sign-in/email, /sign-out y /get-session */],
+  // Sin disabledPaths: no sirve para rutas con parámetros (/reset-password/:token, /callback/:id).
+  // La lista blanca está en route.ts (AUTH_ALLOWED_PATHS): /sign-in/email, /sign-out y /get-session; el resto, 404.
   session: { expiresIn: 60 * 60 * 24 * 7 },
   rateLimit: { enabled: true, storage: "database",
                customRules: { "/sign-in/email": { window: 900, max: AUTH_SIGNIN_MAX_ATTEMPTS } } }, // 5 por defecto
@@ -24,7 +25,7 @@ betterAuth({
 })
 ```
 
-- La configuración exacta de `disabledPaths` se fija en la implementación con la lista de endpoints de 1.7.7.
+- Corregido en la implementación (T021): `disabledPaths` compara la ruta exacta y no puede bloquear rutas con parámetros, así que `src/app/api/auth/[...all]/route.ts` solo deja pasar `AUTH_ALLOWED_PATHS` y el resto responde 404.
 - El test de login comprueba que `/sign-up/email`, `/forget-password`, `/request-password-reset`, `/update-user` y `/delete-user` responden 4xx.
 
 ## Rutas y flujo

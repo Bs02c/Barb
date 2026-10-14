@@ -30,18 +30,18 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
 
 ## Fase 1: preparación
 
-- [ ] T001 [principal] Medición previa de rendimiento con Supabase local, **antes de cambiar ningún archivo de la app**:
+- [X] T001 [principal] Medición previa de rendimiento con Supabase local, **antes de cambiar ningún archivo de la app**:
   - crear `scripts/measure-ttfb.mjs`: 30 peticiones `fetch` secuenciales (5 de calentamiento descartadas) a `http://labarberia.localhost:3000/reservar` y a `/admin` con la cookie del admin de demostración, obtenida haciendo login antes;
   - imprimir la mediana y el p90 del tiempo hasta los primeros bytes;
   - `npm run build && npm run start`, ejecutar el script y anotar los resultados en `specs/005-migracion-postgresql/ttfb.md` (sección "Antes", con fecha, commit y máquina);
   - añadir el script `"perf:ttfb": "node scripts/measure-ttfb.mjs"` a `package.json`.
-- [ ] T002 [principal] Recuento de referencia de pgTAP: ejecutar `npm run test:db` con Supabase y guardar en `specs/005-migracion-postgresql/pgtap-equivalencia.md` el número de asserts por archivo (00 dinámico, 01=131, 02=7, 03=7, 04=34, 05=8, 06=8) y la descripción de cada assert (`grep` de los mensajes).
+- [X] T002 [principal] Recuento de referencia de pgTAP: ejecutar `npm run test:db` con Supabase y guardar en `specs/005-migracion-postgresql/pgtap-equivalencia.md` el número de asserts por archivo (00 dinámico, 01=131, 02=7, 03=7, 04=34, 05=8, 06=8) y la descripción de cada assert (`grep` de los mensajes).
   - Es la tabla origen de la correspondencia (FR-003).
-- [ ] T003 [principal] Dependencias:
+- [X] T003 [principal] Dependencias:
   - `npm install --save-exact better-auth@1.7.7 drizzle-orm@0.45.4 pg@8.23.1` y `npm install --save-exact -D @types/pg@8.23.1`;
   - `npm audit --omit=dev`: ningún aviso alto o crítico en producción. Si lo hay, parar e informar.
   - **No** instalar `drizzle-kit`. No quitar todavía los paquetes de Supabase (T046).
-- [ ] T004 [P] [principal] `.gitignore`: añadir `/db/init/secrets/`.
+- [X] T004 [P] [principal] `.gitignore`: añadir `/db/init/secrets/`.
   - `.env.example`: nuevas variables de [contracts/auth-and-ops.md](contracts/auth-and-ops.md#variables-de-entorno), con comentarios y sin valores:
     - `DATABASE_URL` (`app_login`, `127.0.0.1:54329/barberias`);
     - `AUTH_DATABASE_URL`;
@@ -56,12 +56,12 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
 
 ### 2a. Base de datos (agente `database`; T005–T013 en secuencia salvo `[P]`)
 
-- [ ] T005 [P] [database] `docker/db/Dockerfile`:
+- [X] T005 [P] [database] `docker/db/Dockerfile`:
   - `FROM postgres:17`;
   - `apt-get update && apt-get install -y --no-install-recommends postgresql-17-pgtap libtap-parser-sourcehandler-pgtap-perl && rm -rf /var/lib/apt/lists/*`;
   - comprobar que `pg_prove --version` funciona en la imagen.
   - Si el paquete de `pg_prove` no existe con ese nombre, buscar el correcto en Debian y documentarlo en el reporte.
-- [ ] T006 [P] [database] `db/postgresql.conf`, con los valores de [data-model.md §Configuración](data-model.md#configuración-de-postgresql-vps-de-4-gb-local-igual-salvo-memoria):
+- [X] T006 [P] [database] `db/postgresql.conf`, con los valores de [data-model.md §Configuración](data-model.md#configuración-de-postgresql-vps-de-4-gb-local-igual-salvo-memoria):
   - `listen_addresses='*'`;
   - `shared_buffers` parametrizable (local 128MB);
   - `log_error_verbosity = terse`, `log_parameter_max_length_on_error = 0`, `log_statement = none`, `log_min_error_statement = panic`;
@@ -72,7 +72,7 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
   - `local all all scram-sha-256`;
   - `host all all 0.0.0.0/0 scram-sha-256` y `host all all ::/0 scram-sha-256`. La red ya la limita Docker; en el VPS, la red interna;
   - **ninguna** línea `trust` (research §4).
-- [ ] T007 [database] `db/init/roles.sh` (bash, `set -euo pipefail`), ejecutado por `docker-entrypoint-initdb.d` como `postgres` y reejecutable a mano:
+- [X] T007 [database] `db/init/roles.sh` (bash, `set -euo pipefail`), ejecutado por `docker-entrypoint-initdb.d` como `postgres` y reejecutable a mano:
   - roles y atributos **exactos** de [data-model.md §Roles](data-model.md#roles-globales-del-cluster-dbinitrolessh), idempotente (`DO $$ … if not exists … create role …; $$`, luego `ALTER ROLE … PASSWORD` con contraseñas leídas de `/run/secrets/<rol>_password` y pasadas con `psql -v` y `:'var'`, nunca interpoladas en el texto del SQL);
   - `GRANT authenticated, service_role TO app_login WITH INHERIT FALSE, SET TRUE`;
   - `GRANT pg_read_all_data TO db_backup`;
@@ -81,7 +81,7 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
   - `CREATE EXTENSION IF NOT EXISTS pg_stat_statements` como superusuario.
 
   `db/init/secrets.example/README.md` con los nombres de archivo esperados (`db_owner_password`, `app_login_password`, `auth_login_password`, `db_backup_password`, `postgres_password`) y cómo generarlos. Sin valores.
-- [ ] T008 [database] `db/migrations/0001_baseline.sql` (dbmate: `-- migrate:up` / `-- migrate:down`), traducción de las 6 migraciones de `supabase/migrations/` con estos cambios ([data-model.md](data-model.md)):
+- [X] T008 [database] `db/migrations/0001_baseline.sql` (dbmate: `-- migrate:up` / `-- migrate:down`), traducción de las 6 migraciones de `supabase/migrations/` con estos cambios ([data-model.md](data-model.md)):
   - **Sin** `auth.*`, `anon`, `extensions` de Supabase ni dependencias de Supabase.
   - `create schema extensions; create extension btree_gist with schema extensions;`. Esquemas `private` e `identity` propiedad de `db_owner`. `REVOKE ALL ON SCHEMA public FROM PUBLIC`.
   - `GRANT USAGE` según la tabla de esquemas de data-model.md.
@@ -96,18 +96,18 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
   - `EXECUTE` de funciones según data-model.md.
   - Comentario de cabecera: "Excepción única de la constitución 1.2.0: sustituye a las 6 migraciones de Supabase, aplicadas solo en local".
   - `-- migrate:down`: `drop schema … cascade` de lo creado (solo para local).
-- [ ] T009 [database] `db/seed.sql`, traducción de `supabase/seed.sql`:
+- [X] T009 [database] `db/seed.sql`, traducción de `supabase/seed.sql`:
   - mismos ids, barberías, barberos, servicios, horarios, bloqueos y citas;
   - usuarios en `identity."user"` (`name` = correo, `"emailVerified" true`) y `identity.account` (`"providerId" 'credential'`, `"accountId"` = id del usuario, `password` = hash scrypt **precalculado** de `Demo-Barberia-2026`, generado con `node -e "import('better-auth/crypto').then(async m => console.log(await m.hashPassword('Demo-Barberia-2026')))"` y pegado como literal);
   - cabecera: "SOLO local".
   - Antes de insertar, `DO $$ … if current_database() <> 'barberias' or current_setting('app.env', true) is distinct from 'local' then raise exception … $$`. `scripts/db-reset.mts` fija `set app.env = 'local'` antes de cargarlo (FR-008).
-- [ ] T010 [database] Reescribir `supabase/tests/00–06` como `db/tests/00_structure.test.sql` … `06_cancel_token.test.sql` (`begin; create schema tap; create extension pgtap with schema tap; set search_path = tap, public; … rollback;`):
+- [X] T010 [database] Reescribir `supabase/tests/00–06` como `db/tests/00_structure.test.sql` … `06_cancel_token.test.sql` (`begin; create schema tap; create extension pgtap with schema tap; set search_path = tap, public; … rollback;`):
   - sesión simulada: `set local role authenticated; select set_config('app.user_id', '<uuid>', true);` en vez de `request.jwt.claims`;
   - usuarios de prueba en `identity."user"`;
   - en 00, los asserts de `anon` se sustituyen por la comprobación de privilegios **exactos** por rol y tabla (`table_privs_are` y `column_privs_are` para `authenticated` y `service_role` con la lista de data-model.md);
   - en 01, los asserts del super admin que escribe barberías pasan a esperar `42501`;
   - mantener **todos** los demás asserts con el mismo significado.
-- [ ] T011 [database] `db/tests/07_roles.test.sql` (test obligatorio 1 y parte del 5):
+- [X] T011 [database] `db/tests/07_roles.test.sql` (test obligatorio 1 y parte del 5):
   - atributos de cada rol de la matriz (`rolsuper`, `rolbypassrls`, `rolcanlogin`, `rolinherit`);
   - `app_login` no es dueño de ningún objeto (`pg_class`, `pg_proc`, `pg_namespace`, `pg_type`) y no tiene privilegios directos en ninguna tabla de `public`, `private` ni `identity`;
   - membresías de `app_login` con `inherit_option = false` y `set_option = true` (`pg_auth_members`);
@@ -116,15 +116,15 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
   - `pg_hba_file_rules` sin `auth_method = 'trust'`;
   - `authenticated` y `service_role` sin ningún privilegio en `identity.*`;
   - usuario sin perfil y admin de barbería desactivada: 0 filas en todas las tablas de negocio (test 5).
-- [ ] T012 [database] Completar `specs/005-migracion-postgresql/pgtap-equivalencia.md` (creado en T002) con la correspondencia assert a assert, origen → destino, y la justificación de los que cambian de significado (super admin y `anon`).
+- [X] T012 [database] Completar `specs/005-migracion-postgresql/pgtap-equivalencia.md` (creado en T002) con la correspondencia assert a assert, origen → destino, y la justificación de los que cambian de significado (super admin y `anon`).
   - Total nuevo ≥ 224 + asserts de 07 (FR-003, test 6).
-- [ ] T013 [database] Verificación de la fase con `docker compose -f compose.dev.yml` (de T014):
+- [X] T013 [database] Verificación de la fase con `docker compose -f compose.dev.yml` (de T014):
   - `up -d db`, `run --rm migrate up`, carga del seed y `pg_prove` de todos los tests en verde;
   - reporte con el recuento de asserts por archivo.
 
 ### 2b. Infraestructura local y capa de datos (principal; puede empezar en paralelo con 2a usando data-model.md)
 
-- [ ] T014 [principal] `compose.dev.yml`:
+- [X] T014 [principal] `compose.dev.yml`:
   - servicio `db`:
     - `build: docker/db`, `POSTGRES_DB=barberias`;
     - `POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password` y `secrets` desde `db/init/secrets/*`;
@@ -138,14 +138,14 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
     - `DBMATE_MIGRATIONS_DIR=/db/migrations`, `DBMATE_NO_DUMP_SCHEMA=true`, `--wait`;
     - la contraseña se lee de un secreto (un `entrypoint` de shell que exporta la URL desde `/run/secrets/db_owner_password`; ninguna contraseña en el YAML).
   - Scripts de `package.json`, con las definiciones de [contracts/auth-and-ops.md §Comandos](contracts/auth-and-ops.md#comandos-packagejson): `db:start`, `db:stop`, `db:migrate` y `test:db` (`docker compose -f compose.dev.yml exec -u postgres db pg_prove -d barberias /tests/`).
-- [ ] T015 [principal] `scripts/db-reset.mts` (Node 24, `pg`, `DATABASE_OWNER_URL`):
+- [X] T015 [principal] `scripts/db-reset.mts` (Node 24, `pg`, `DATABASE_OWNER_URL`):
   - se niega si el host no es `127.0.0.1` o `localhost` o si el puerto no es 54329;
   - como superusuario vía `docker compose exec -u postgres db psql`: `drop database if exists barberias with (force)`, `create database barberias owner db_owner` y `revoke connect … from public`; o alternativa equivalente documentada;
   - `npm run db:migrate`;
   - carga `db/seed.sql` como `db_owner` con `set app.env = 'local'`.
   - Script `"db:reset"`.
   - Crear `.env.local` local siguiendo `.env.example` (no versionado) y secretos locales en `db/init/secrets/` con valores aleatorios (`node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"`).
-- [ ] T016 [P] [principal] `src/lib/db/errors.ts` + `errors.test.ts` (test obligatorio 10):
+- [X] T016 [P] [principal] `src/lib/db/errors.ts` + `errors.test.ts` (test obligatorio 10):
   - `toDbError(e)` desenvuelve `cause` (incluido `DrizzleQueryError`) y devuelve `{ code, constraint }` o `null`;
   - nunca `message`, `detail`, `query` ni `params`;
   - tests con errores simulados de pg para `23P01`, `40P01`, `23505`, `23503`, `23514` + `appointments_phone_limit`, y `42501`;
@@ -153,7 +153,7 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
   - un error que no es de la base da `null`.
 
   Actualizar `src/lib/log.ts`: `logSafeError(context, error)` acepta `unknown`, pero si es error de base usa `toDbError`, y si no, solo `name` y `code`. Comentario sobre el mensaje de Drizzle con parámetros (research §8).
-- [ ] T017 [P] [principal] `src/lib/db/schema.ts` escrito a mano (D1, research §3): `pgTable` de `barbershops`, `profiles`, `barbers`, `services`, `barber_schedules`, `barber_blocks` y `appointments`, solo columnas, con:
+- [X] T017 [P] [principal] `src/lib/db/schema.ts` escrito a mano (D1, research §3): `pgTable` de `barbershops`, `profiles`, `barbers`, `services`, `barber_schedules`, `barber_blocks` y `appointments`, solo columnas, con:
   - `timestamp(..., { withTimezone: true, mode: "date" })`;
   - `numeric(…, { precision: 12, scale: 2 })`;
   - `time`, `smallint`, `uuid`, `text`, `boolean`;
@@ -161,13 +161,13 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
   - `customType` `bytea` → `Buffer` para `cancel_token_hash`.
 
   Comentario de cabecera: "Escrito a mano (ADR-017 enmienda 1). El SQL de db/migrations es la fuente de verdad; tests/integration/schema-drift.test.ts falla si difieren. Sin FK, check, índices ni políticas a propósito".
-- [ ] T018 [principal] `src/lib/db/pool.ts` y `src/lib/db/client.ts` según [contracts/data-access.md](contracts/data-access.md):
+- [X] T018 [principal] `src/lib/db/pool.ts` y `src/lib/db/client.ts` según [contracts/data-access.md](contracts/data-access.md):
   - pool en `globalThis` (máx. 10, `connectionTimeoutMillis` 5000) desde `DATABASE_URL` o `DATABASE_URL_FILE`;
   - `drizzle(pool, { schema })`;
   - `withAdmin(session: VerifiedSession, fn)` y `withService(fn)` con `db.transaction(async tx => { await tx.execute(sql\`select set_config('role', 'authenticated', true), set_config('app.user_id', ${session.userId}, true)\`); return fn(tx); })`, y la versión `service_role` sin identidad;
   - tipo `Tx`;
   - `import "server-only"` en todos.
-- [ ] T019 [principal] `src/lib/db/startup-check.ts` + `src/instrumentation.ts` (research §10):
+- [X] T019 [principal] `src/lib/db/startup-check.ts` + `src/instrumentation.ts` (research §10):
   - leer `node_modules/next/dist/docs/01-app/02-guides/instrumentation.md` antes;
   - `register()`: si `process.env.NEXT_RUNTIME === "nodejs"` y `NEXT_PHASE !== "phase-production-build"`, importar y ejecutar `assertSafeRoles()`;
   - consultas con el pool de app y el de auth:
@@ -177,13 +177,13 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
     - `current_user` del pool de auth = `auth_login`;
   - ante cualquier fallo, incluido un error de conexión: `console.error("La app no arranca: <motivo>")`, sin URL ni contraseña, y `process.exit(1)`.
   - Verificar a mano que con `DATABASE_URL` de `db_owner` el servidor no arranca.
-- [ ] T020 [principal] `eslint.config.mjs`: `no-restricted-imports` según [contracts/data-access.md §Reglas](contracts/data-access.md#withadmin--withservice):
+- [X] T020 [principal] `eslint.config.mjs`: `no-restricted-imports` según [contracts/data-access.md §Reglas](contracts/data-access.md#withadmin--withservice):
   - `withService` de `@/lib/db/client` prohibido en `src/lib/admin/**`, `src/app/**/admin/**` y `src/components/admin/**`;
   - `@/lib/db/pool` prohibido fuera de `src/lib/db/`;
   - `pg` y `drizzle-orm/node-postgres` prohibidos fuera de `src/lib/db/` y `src/lib/auth/`.
 
   Probar que una importación prohibida falla el lint (temporalmente) y revertir.
-- [ ] T021 [principal] `src/lib/auth/auth.ts` según [contracts/auth-and-ops.md](contracts/auth-and-ops.md):
+- [X] T021 [principal] `src/lib/auth/auth.ts` según [contracts/auth-and-ops.md](contracts/auth-and-ops.md):
   - pool `auth_login` (máx. 3) desde `AUTH_DATABASE_URL` o `AUTH_DATABASE_URL_FILE`;
   - `baseURL` dinámico con `allowedHosts` y `trustedOrigins` a partir de `NEXT_PUBLIC_ROOT_DOMAIN` (en local `*.localhost:3000`, `http`);
   - `disableSignUp`, `disabledPaths` (enumerar los endpoints de 1.7.7 en `node_modules/better-auth/dist/api/routes/` y dejar solo `/sign-in/email`, `/sign-out` y `/get-session`), `session.expiresIn` 7 días, `rateLimit` en la base con `AUTH_SIGNIN_MAX_ATTEMPTS`, `generateId: "uuid"`, `ipAddressHeaders: ["x-real-ip"]`, cookies solo del host y `nextCookies()`;
@@ -192,16 +192,16 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
   - `src/lib/auth/session.ts`:
     - `getVerifiedSession(): Promise<VerifiedSession | null>`, que usa `auth.api.getSession({ headers: await headers() })`;
     - tipo marcado `VerifiedSession` (`unique symbol`); es el único lugar que lo fabrica.
-- [ ] T022 [principal] `src/proxy.ts`:
+- [X] T022 [principal] `src/proxy.ts`:
   - en subdominio de barbería, `pathname.startsWith("/api/auth/")` → `NextResponse.next()` sin reescribir;
   - en el dominio raíz, `/api/auth/*` → 404;
   - quitar `refreshSession` y la importación de `@/lib/supabase/proxy`;
   - actualizar el comentario;
   - test unitario de `src/lib/tenant.ts` o del proxy si la lógica nueva es pura.
-- [ ] T023 [principal] `tests/integration/schema-drift.test.ts`: por cada tabla de `src/lib/db/schema.ts` (`getTableConfig`), comparar nombre, tipo SQL y nulabilidad de cada columna con `information_schema.columns` de la base local, en ambos sentidos.
+- [X] T023 [principal] `tests/integration/schema-drift.test.ts`: por cada tabla de `src/lib/db/schema.ts` (`getTableConfig`), comparar nombre, tipo SQL y nulabilidad de cada columna con `information_schema.columns` de la base local, en ambos sentidos.
   - Cualquier diferencia falla, con un mensaje que diga qué columna.
   - Conexión con `DATABASE_OWNER_URL` (local).
-- [ ] T024 [principal] Helper de tests de integración `tests/integration/helpers/db.ts`:
+- [X] T024 [principal] Helper de tests de integración `tests/integration/helpers/db.ts`:
   - `ownerDb` (`DATABASE_OWNER_URL`) para preparar y borrar datos;
   - guardia: lanza error si el host no es local (ADR-014);
   - funciones `createTestBarbershop()` y `createTestAdmin(barbershopId)`, que insertan en `identity."user"`, `identity.account` con `hashPassword` y `profiles`.
@@ -216,38 +216,38 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
 **Objetivo**: reserva, confirmación y cancelación pública sobre la base nueva, con `withService`.
 **Prueba independiente**: `npm run test:integration` (booking, cancellation, concurrencia, barbershops) y `npm run test:e2e` (booking y cancellation) sin cambiar lo que comprueban.
 
-- [ ] T025 [P] [US1] [principal] `src/lib/barbershops.ts`: `getPublicBarbershop` con `withService` + Drizzle (`select id, name, subdomain, timezone … where subdomain = $1 and is_active`). Mismo tipo `PublicBarbershop` y `cache`.
-- [ ] T026 [P] [US1] [principal] `src/lib/cancellation/token.ts`: `hashToken` devuelve `Buffer` (32 bytes, SHA-256).
+- [X] T025 [P] [US1] [principal] `src/lib/barbershops.ts`: `getPublicBarbershop` con `withService` + Drizzle (`select id, name, subdomain, timezone … where subdomain = $1 and is_active`). Mismo tipo `PublicBarbershop` y `cache`.
+- [X] T026 [P] [US1] [principal] `src/lib/cancellation/token.ts`: `hashToken` devuelve `Buffer` (32 bytes, SHA-256).
   - Actualizar `token.test.ts`: `Buffer` de 32 bytes, determinista, distinto para tokens distintos.
   - Quitar el comentario sobre el formato de PostgREST.
-- [ ] T027 [US1] [principal] `src/lib/booking/queries.ts`: `getBookingCatalog` y `loadSlots` con `withService` (una transacción por función; las tres lecturas en la misma `tx`, en secuencia, **o** tres `withService` en paralelo como hoy: elegir tres en paralelo para conservar la latencia y documentarlo).
+- [X] T027 [US1] [principal] `src/lib/booking/queries.ts`: `getBookingCatalog` y `loadSlots` con `withService` (una transacción por función; las tres lecturas en la misma `tx`, en secuencia, **o** tres `withService` en paralelo como hoy: elegir tres en paralelo para conservar la latencia y documentarlo).
   - Mismos filtros, incluido el límite inferior `appointmentsFrom` (PERF-003).
   - `price` → `Number()`; `starts_at` y `ends_at` → `Date` directamente para `toRange`.
   - Mismos tipos públicos.
-- [ ] T028 [US1] [principal] `src/lib/booking/book.ts`:
+- [X] T028 [US1] [principal] `src/lib/booking/book.ts`:
   - conteo por teléfono con `withService` (`select count(*)::int`);
   - `insert` con `withService`, `cancel_token_hash: hashToken(token)` (`Buffer`), fechas como `Date` y precio como string;
   - `fromDatabase` usa `toDbError`: `constraint === "appointments_phone_limit"` → límite; `23P01` y `40P01` como hoy; si no, se relanza el original sin registrarlo aquí;
   - quitar el import de `PostgrestError`.
-- [ ] T029 [US1] [principal] `src/lib/cancellation/queries.ts` y `cancel.ts`:
+- [X] T029 [US1] [principal] `src/lib/cancellation/queries.ts` y `cancel.ts`:
   - `findByToken`: `leftJoin` de `services` y `barbers` en una sentencia, filtrando por `barbershop_id` y `cancel_token_hash`;
   - `submitCancellation`: un solo `update … where barbershop_id and cancel_token_hash and status='active' and starts_at > now returning id` con `withService`;
   - mismos mensajes y estados;
   - `logSafeError` con el error original (lo sanea `log.ts`, T016).
-- [ ] T030 [US1] [principal] Reescribir `tests/integration/{booking,cancellation,appointments-concurrency,barbershops}.test.ts`:
+- [X] T030 [US1] [principal] Reescribir `tests/integration/{booking,cancellation,appointments-concurrency,barbershops}.test.ts`:
   - preparar datos con `ownerDb` (T024), en lugar de `createServiceClient`;
   - las expectativas **no cambian**;
   - en `cancellation`, comparar el hash como `Buffer`.
-- [ ] T031 [US1] [principal] `tests/integration/formats.test.ts` (test obligatorio 9). Con datos creados por `ownerDb` y leídos por las funciones públicas:
+- [X] T031 [US1] [principal] `tests/integration/formats.test.ts` (test obligatorio 9). Con datos creados por `ownerDb` y leídos por las funciones públicas:
   - `startsAt`/`endsAt` en ISO con `Z` y ordenables con `localeCompare`;
   - `price` como `number` con decimales correctos (25000.5);
   - `start_time` `"HH:MM:SS"`;
   - `cancel_token_hash` leído como `Buffer` de 32 bytes que coincide con `hashToken`.
-- [ ] T032 [US1] [principal] `tests/integration/lock-timeout.test.ts` (test obligatorio 7):
+- [X] T032 [US1] [principal] `tests/integration/lock-timeout.test.ts` (test obligatorio 7):
   - una conexión `ownerDb` abre una transacción y toma `pg_advisory_xact_lock(hashtextextended('<shop>:<phone>', 0))`;
   - una reserva del mismo teléfono con `bookAppointment` falla en menos de 6 s (`lock_timeout` de 5 s), con resultado de error del servidor y sin quedarse colgada;
   - liberar el candado al final.
-- [ ] T033 [US1] [frontend] `tests/e2e/booking.spec.ts` y `cancellation.spec.ts`: sustituir el cliente de Supabase por un helper `tests/e2e/helpers/db.ts` (`pg` con `DATABASE_OWNER_URL` y guardia local) para preparar y limpiar datos.
+- [X] T033 [US1] [frontend] `tests/e2e/booking.spec.ts` y `cancellation.spec.ts`: sustituir el cliente de Supabase por un helper `tests/e2e/helpers/db.ts` (`pg` con `DATABASE_OWNER_URL` y guardia local) para preparar y limpiar datos.
   - Mismas comprobaciones y escaneo `axe`.
   - Coordinarse con el principal si el helper debe compartirse con T024 (se puede reutilizar `tests/integration/helpers/db.ts`).
 
@@ -260,24 +260,24 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
 **Objetivo**: login con Better Auth y panel sobre `withAdmin`.
 **Prueba independiente**: E2E de la agenda e integración de auth.
 
-- [ ] T034 [US2] [principal] `src/lib/admin/session.ts`: `getAdminContext(subdomain)`:
+- [X] T034 [US2] [principal] `src/lib/admin/session.ts`: `getAdminContext(subdomain)`:
   - `getVerifiedSession()`; si no hay sesión, `anonymous`;
   - `withAdmin(session, tx => select de profiles leftJoin barbershops)` en **una** consulta;
   - misma lógica de estados (`forbidden`, `inactive`, `ok`) y mismo tipo `AdminContext`;
   - `email` sale de la sesión de Better Auth;
   - `cache` se mantiene.
-- [ ] T035 [US2] [principal] `src/lib/admin/queries.ts`: las 5 lecturas con `withAdmin`.
+- [X] T035 [US2] [principal] `src/lib/admin/queries.ts`: las 5 lecturas con `withAdmin`.
   - `listAppointmentsForDay` con `leftJoin` de barbers y services, el mismo orden y conversión a ISO.
   - Los tipos exportados (`Barber`, `Service`, `ScheduleSlot`, `Block`, `AgendaAppointment`) se declaran explícitos, para no depender de `ReturnType` de Drizzle y que los componentes no cambien.
   - Las funciones reciben la `VerifiedSession` o la obtienen con `getVerifiedSession()` (elegir una forma y aplicarla en todas).
-- [ ] T036 [US2] [principal] `src/lib/admin/actions.ts`:
+- [X] T036 [US2] [principal] `src/lib/admin/actions.ts`:
   - todas las acciones con `withAdmin`;
   - `fromDatabase` con `toDbError` (mismos mensajes; `default` → `logSafeError`);
   - quitar `signIn`;
   - nueva `confirmPanelAccess(subdomain)`: `getAdminContext`; si no es `ok`, `auth.api.signOut({ headers: await headers() })` y devuelve el mismo mensaje de hoy según `inactive` o `forbidden`; si es `ok`, `redirect("/admin")`;
   - `signOut()` con `auth.api.signOut` + redirección;
   - quitar los imports de Supabase.
-- [ ] T037 [US2] [frontend] `src/components/admin/login-form.tsx` (D3, [contracts/auth-and-ops.md §Rutas](contracts/auth-and-ops.md#rutas-y-flujo)):
+- [X] T037 [US2] [frontend] `src/components/admin/login-form.tsx` (D3, [contracts/auth-and-ops.md §Rutas](contracts/auth-and-ops.md#rutas-y-flujo)):
   - validar con `loginSchema` en el cliente como hoy;
   - `fetch("/api/auth/sign-in/email", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password }), credentials: "same-origin" })`;
   - 401/400 → "Correo o contraseña incorrectos.";
@@ -286,7 +286,7 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
   - si va bien, llamar a la server action `confirmPanelAccess(subdomain)` y mostrar su mensaje si devuelve error;
   - mismos campos, etiquetas, `autoComplete`, foco al error, estado `pending` ("Entrando…") y accesibilidad (`DESIGN.md`).
   - No usar `better-auth/client` (no hace falta).
-- [ ] T038 [US2] [principal] `tests/integration/auth.test.ts` (test obligatorio 8 y FR-016–FR-019), contra `auth.handler` con `new Request(...)` y `host` de barbería:
+- [X] T038 [US2] [principal] `tests/integration/auth.test.ts` (test obligatorio 8 y FR-016–FR-019), contra `auth.handler` con `new Request(...)` y `host` de barbería:
   - (a) `POST /api/auth/sign-up/email` → 4xx;
   - (b) `/forget-password`, `/request-password-reset`, `/update-user` y `/delete-user` → 4xx;
   - (c) un login correcto con un admin de prueba (T024) devuelve una cookie `HttpOnly`, `SameSite=Lax`, **sin** atributo `Domain`;
@@ -294,7 +294,7 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
   - (e) con `AUTH_SIGNIN_MAX_ATTEMPTS=2` y `x-real-ip` fijo, el 3.er intento → 429, y otra IP no queda bloqueada;
   - (f) tras sign-out, la cookie ya no da sesión (`getSession` null);
   - (g) usuario borrado → la sesión deja de valer (cascade).
-- [ ] T039 [US2] [frontend] `tests/e2e/admin-agenda.spec.ts`:
+- [X] T039 [US2] [frontend] `tests/e2e/admin-agenda.spec.ts`:
   - helper `pg` de T033 en lugar de Supabase;
   - el login sigue usando la interfaz (correo y contraseña de demostración del seed);
   - mismas comprobaciones de agenda y cancelación, y `axe`;
@@ -309,16 +309,16 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
 **Objetivo**: demostrar el aislamiento con la conexión real de la app.
 **Prueba independiente**: los tests de esta fase.
 
-- [ ] T040 [US3] [principal] `tests/integration/isolation-app-login.test.ts` (test obligatorio 2), con dos barberías y sus admins (T024) y una sesión verificada simulada **solo en el test** (un helper de test que fabrica `VerifiedSession` a partir de una sesión real de Better Auth creada con login):
+- [X] T040 [US3] [principal] `tests/integration/isolation-app-login.test.ts` (test obligatorio 2), con dos barberías y sus admins (T024) y una sesión verificada simulada **solo en el test** (un helper de test que fabrica `VerifiedSession` a partir de una sesión real de Better Auth creada con login):
   - por cada una de las **15 operaciones** de [contracts/data-access.md](contracts/data-access.md#las-15-operaciones-del-panel-aislamiento-solo-con-rls-test-2), invocar la función real del panel como admin de A con ids o `barbershop_id` de B;
   - esperar 0 filas, 0 afectadas o el mensaje de permiso, y comprobar con `ownerDb` que los datos de B no cambiaron.
-- [ ] T041 [US3] [principal] `tests/integration/pool.test.ts` (tests obligatorios 3 y 4) con el pool real de `app_login`:
+- [X] T041 [US3] [principal] `tests/integration/pool.test.ts` (tests obligatorios 3 y 4) con el pool real de `app_login`:
   - (a) tras `withAdmin(A)`, la misma conexión (forzar `max: 1` en un pool de test con la misma URL) ve `current_user = app_login` y `current_setting('app.user_id', true)` vacío;
   - (b) `withAdmin(A)` y `withAdmin(B)` seguidas en `max: 1` no comparten identidad;
   - (c) una consulta directa sin envoltorio (`pool.query('select * from public.barbers')`) da error `42501`;
   - (d) un `withService` tras un `withAdmin` no conserva `app.user_id`;
   - (e) `git grep -nE "set_config\([^)]*false\)|\bSET (LOCAL )?(ROLE|app\.)" src` vacío, como assert del test.
-- [ ] T042 [US3] [principal] Revisar que `npm run lint` rechaza `withService` en el panel (T020) y dejar constancia en el reporte.
+- [X] T042 [US3] [principal] Revisar que `npm run lint` rechaza `withService` en el panel (T020) y dejar constancia en el reporte.
 
 **Punto de control**: tests obligatorios 1–10 en verde (1, 5 y 6 en pgTAP; 2, 3, 4, 7, 8, 9 y 10 en Vitest).
 
@@ -329,17 +329,17 @@ description: "Tareas de la spec 005: migración de Supabase a PostgreSQL propio 
 **Objetivo**: alta de barberías, seed y protección de entornos.
 **Prueba independiente**: quickstart §1 y §3 (filas de la historia 4).
 
-- [ ] T043 [US4] [principal] `scripts/create-barbershop.mts`:
+- [X] T043 [US4] [principal] `scripts/create-barbershop.mts`:
   - `pg` con `DATABASE_OWNER_URL`;
   - **una transacción**: `insert barbershops` → `identity."user"` (`name` = correo, `"emailVerified" true`) → `identity.account` (`credential`, `hashPassword` de `better-auth/crypto` con contraseña aleatoria de 24 caracteres) → `profiles`; `rollback` ante cualquier error;
   - mismos mensajes para `23505` y `23514` (vía `toDbError`), misma salida y misma guardia `--confirm-remote` (host no local);
   - script `"barbershop:create": "node --env-file=.env.local scripts/create-barbershop.mts"`.
-- [ ] T044 [US4] [principal] `tests/integration/create-barbershop.test.ts`:
+- [X] T044 [US4] [principal] `tests/integration/create-barbershop.test.ts`:
   - ejecutar el script con `node` (child process) contra la base local;
   - comprobar que la barbería, el usuario, la cuenta y el perfil existen y que el login con la contraseña impresa funciona (`auth.handler`);
   - un subdominio repetido no deja filas a medias;
   - limpiar al final.
-- [ ] T045 [US4] [principal] Comprobar a mano y anotar en el reporte:
+- [X] T045 [US4] [principal] Comprobar a mano y anotar en el reporte:
   - `npm run db:reset` con `DATABASE_OWNER_URL` apuntando a un host no local se niega;
   - cargar `db/seed.sql` sin `app.env=local` falla;
   - `npm run test:integration` con `DATABASE_URL` no local se niega.

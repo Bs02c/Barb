@@ -49,3 +49,6 @@ next-env.d.ts
 
 # correo de desarrollo (EMAIL_TRANSPORT=outbox)
 /.outbox/
+
+# contraseñas de los roles de PostgreSQL (db/init/roles.sh); nunca en git
+/db/init/secrets/

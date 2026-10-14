@@ -5,18 +5,14 @@ import { bookAppointment as bookOutcome } from "@/lib/booking/book";
 import { hashToken } from "@/lib/cancellation/token";
 import type { BookingInput } from "@/lib/booking/schemas";
 import { submitBooking as submitOutcome } from "@/lib/booking/submit";
-import { createServiceClient } from "@/lib/supabase/service";
 import { localDateTimeToUtc } from "@/lib/time";
+import { deleteBarbershop, insert, query } from "./helpers/db";
 
 // Reglas del servidor de la reserva pública (spec 002: historias 1–5, FR-008 a FR-014).
 // Crea dos barberías de prueba propias (no depende del seed) y las borra al terminar.
 // Cada test usa su propio día o barbero, así se puede ejecutar solo (revisión fase 4, MAINT-008).
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-if (!url || !["127.0.0.1", "localhost"].includes(new URL(url).hostname)) {
-  throw new Error("Este test solo corre contra Supabase local: revisa .env.local"); // ADR-014
-}
-
-const db = createServiceClient();
+// Los datos se preparan como db_owner (helpers/db.ts, solo base local); lo que se prueba usa las
+// funciones reales de la app (withService con app_login).
 
 // bookResult/submitResult devuelven solo el resultado para el navegador (los tests de reglas);
 // bookOutcome/submitOutcome, el outcome completo con los datos del correo (los de la confirmación).
@@ -37,21 +33,17 @@ let inactive: string;
 let corte: string; // 45 min, $25.000
 let otherShopService: string;
 
-async function insert<T>(table: string, row: Record<string, unknown>) {
-  const { data, error } = await db.from(table as "barbers").insert(row as never).select("*").single();
-  if (error) throw error;
-  return data as T;
+async function activeCount(barberId: string, startsAt: string) {
+  const [row] = await query<{ count: number }>(
+    "select count(*)::int as count from public.appointments where barber_id = $1 and starts_at = $2 and status = 'active'",
+    [barberId, startsAt],
+  );
+  return row.count;
 }
 
-async function activeCount(barberId: string, startsAt: string) {
-  const { count, error } = await db
-    .from("appointments")
-    .select("id", { count: "exact", head: true })
-    .eq("barber_id", barberId)
-    .eq("starts_at", startsAt)
-    .eq("status", "active");
-  if (error) throw error;
-  return count ?? 0;
+async function appointmentAt(barberId: string, startsAt: string) {
+  const [row] = await query("select * from public.appointments where barber_id = $1 and starts_at = $2", [barberId, startsAt]);
+  return row;
 }
 
 beforeAll(async () => {
@@ -78,8 +70,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // Borrar la barbería borra en cascada barberos, servicios, horarios, bloqueos y citas.
-  if (shop) await db.from("barbershops").delete().eq("id", shop.id);
-  if (otherShop) await db.from("barbershops").delete().eq("id", otherShop.id);
+  await deleteBarbershop(shop?.id);
+  await deleteBarbershop(otherShop?.id);
 });
 
 function input(overrides: Partial<BookingInput> = {}): BookingInput {
@@ -101,16 +93,11 @@ describe("bookAppointment", () => {
     const result = await bookResult(shop, input({ starts_at: startsAt }), NOW);
     expect(result).toMatchObject({ ok: true, summary: { serviceName: "Corte", barberName: "Andrés", durationMinutes: 45 } });
 
-    const { data } = await db
-      .from("appointments")
-      .select("starts_at, ends_at, service_price, service_duration_minutes, data_consent_at, status")
-      .eq("barber_id", andres)
-      .eq("starts_at", startsAt)
-      .single();
+    const data = await appointmentAt(andres, startsAt);
     expect(data).toMatchObject({ service_duration_minutes: 45, status: "active" });
-    expect(Number(data!.service_price)).toBe(25000);
-    expect(new Date(data!.ends_at).getTime() - new Date(data!.starts_at).getTime()).toBe(45 * 60_000);
-    expect(new Date(data!.data_consent_at).toISOString()).toBe(NOW.toISOString());
+    expect(Number(data.service_price)).toBe(25000);
+    expect(new Date(data.ends_at as Date).getTime() - new Date(data.starts_at as Date).getTime()).toBe(45 * 60_000);
+    expect(new Date(data.data_consent_at as Date).toISOString()).toBe(NOW.toISOString());
   });
 
   it("rechaza una hora ya reservada (aunque la interfaz la hubiera mostrado)", async () => {
@@ -211,13 +198,10 @@ describe("bookAppointment", () => {
     expect(results.filter((r) => r.ok)).toHaveLength(2);
     // Siempre el mensaje de límite, nunca un error genérico.
     expect(results.filter((r) => !r.ok).every((r) => !r.ok && r.code === "limit_reached")).toBe(true);
-    const { count, error } = await db
-      .from("appointments")
-      .select("id", { count: "exact", head: true })
-      .eq("barbershop_id", shop.id)
-      .eq("customer_phone", phone)
-      .eq("status", "active");
-    if (error) throw error;
+    const [{ count }] = await query<{ count: number }>(
+      "select count(*)::int as count from public.appointments where barbershop_id = $1 and customer_phone = $2 and status = 'active'",
+      [shop.id, phone],
+    );
     expect(count).toBe(2); // la prueba de verdad: dos filas, no cinco
   });
 });
@@ -286,8 +270,8 @@ describe("confirmación y token de cancelación (spec 003)", () => {
     expect(JSON.stringify(result)).not.toContain(token); // el navegador no ve el token
 
     // Toda la fila: el token no puede estar en claro en ninguna columna.
-    const { data } = await db.from("appointments").select("*").eq("barber_id", andres).eq("starts_at", startsAt).single();
-    expect(data!.cancel_token_hash).toBe(hashToken(token));
+    const data = await appointmentAt(andres, startsAt);
+    expect((data.cancel_token_hash as Buffer).equals(hashToken(token))).toBe(true);
     expect(JSON.stringify(data)).not.toContain(token);
   });
 

@@ -1,7 +1,9 @@
 import "server-only";
+import { and, eq, gt } from "drizzle-orm";
 import { getPublicBarbershop } from "@/lib/barbershops";
+import { withService } from "@/lib/db/client";
+import { appointments } from "@/lib/db/schema";
 import { logSafeError } from "@/lib/log";
-import { createServiceClient } from "@/lib/supabase/service";
 import { resolveTenant, ROOT_DOMAIN } from "@/lib/tenant";
 import type { CancelResult } from "./cancellation-state";
 import { CANCEL_MESSAGES } from "./messages";
@@ -33,16 +35,21 @@ export async function submitCancellation(
 
   try {
     const hash = hashToken(token);
-    const { data, error } = await createServiceClient()
-      .from("appointments")
-      .update({ status: "cancelled", cancelled_at: now.toISOString() })
-      .eq("barbershop_id", barbershop.id)
-      .eq("cancel_token_hash", hash)
-      .eq("status", "active")
-      .gt("starts_at", now.toISOString())
-      .select("id");
-    if (error) throw error;
-    if (data.length > 0) return { ok: true };
+    const cancelled = await withService((tx) =>
+      tx
+        .update(appointments)
+        .set({ status: "cancelled", cancelledAt: now })
+        .where(
+          and(
+            eq(appointments.barbershopId, barbershop.id),
+            eq(appointments.cancelTokenHash, hash),
+            eq(appointments.status, "active"),
+            gt(appointments.startsAt, now),
+          ),
+        )
+        .returning({ id: appointments.id }),
+    );
+    if (cancelled.length > 0) return { ok: true };
 
     // 0 filas: distinguir por qué para dar el mensaje correcto.
     const existing = await findByToken(barbershop, token);
