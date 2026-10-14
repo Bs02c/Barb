@@ -1,4 +1,5 @@
-// Mide el tiempo hasta el primer byte (TTFB) de /reservar y /admin (spec 005, FR-023 y SC-005).
+// Mide el tiempo hasta el primer byte (TTFB) de la portada (/), /reservar y /admin (spec 005, FR-023 y
+// SC-005; spec 006, SC-005).
 // Uso: con la app en marcha en modo producción (`npm run build && npm run start`):
 //   npm run perf:ttfb
 // Inicia sesión una vez con el admin de demostración por la interfaz (Playwright) para obtener la
@@ -75,11 +76,13 @@ async function measure(path, cookie) {
 }
 
 const cookie = await adminCookie();
+const home = await measure("/");
 const reservar = await measure("/reservar");
 const admin = await measure("/admin", cookie);
 
 console.log(`Mediciones (${RUNS} peticiones, ${WARMUP} de calentamiento), en ms:`);
 console.log(`| Ruta | Mediana | p90 |`);
 console.log(`|---|---|---|`);
+console.log(`| / | ${home.median} | ${home.p90} |`);
 console.log(`| /reservar | ${reservar.median} | ${reservar.p90} |`);
 console.log(`| /admin | ${admin.median} | ${admin.p90} |`);

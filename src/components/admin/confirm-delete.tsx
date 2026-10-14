@@ -50,7 +50,7 @@ export function ConfirmDelete({ subdomain, action, id, title, description, trigg
           <Button
             variant="outline"
             size={iconOnly ? "icon" : "default"}
-            className="text-destructive hover:text-destructive"
+            className="text-destructive-text hover:text-destructive-text"
             aria-label={triggerLabel}
           />
         }

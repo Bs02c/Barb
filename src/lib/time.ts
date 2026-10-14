@@ -69,6 +69,11 @@ export function toLocalDate(instant: Date | string, timeZone: string): string {
   return utcToLocalDateTime(instant, timeZone).slice(0, 10);
 }
 
+/** Instante UTC → hora local "HH:MM" de la barbería (estado de apertura de la portada, spec 006). */
+export function toLocalTimeOfDay(instant: Date | string, timeZone: string): string {
+  return utcToLocalDateTime(instant, timeZone).slice(11, 16);
+}
+
 /** Instante UTC → "2026-10-13T10:00" en la hora local de la barbería (para rellenar formularios). */
 export function utcToLocalDateTime(instant: Date | string, timeZone: string): string {
   const date = typeof instant === "string" ? new Date(instant) : instant;
@@ -121,6 +126,14 @@ export function formatTimeOfDay(time: string): string {
   return dateFormatter(LOCALE, { hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(
     new Date(Date.UTC(2000, 0, 1, h, m)),
   );
+}
+
+/** Duración de un servicio: 30 → "30 min"; 60 → "1 h"; 75 → "1 h 15 min" (portada, spec 006). */
+export function formatDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m} min`;
+  return m === 0 ? `${h} h` : `${h} h ${m} min`;
 }
 
 /** Precio en pesos colombianos: 25000 → "$ 25.000". */

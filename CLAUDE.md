@@ -11,7 +11,7 @@ Plataforma multi-tenant donde cada barbería tiene su propio espacio, identifica
 - Claude escribe todo el código; el usuario no implementa.
 - Al terminar una funcionalidad, Claude explica brevemente cómo funciona y cómo se conecta con el resto, sin extenderse.
 - Se trabaja según `Plan-de-ejecucion.md` del vault (8 fases). Al cerrar cada fase, Claude hace el commit (autorizado por el usuario).
-- Diseño: `DESIGN.md` en la raíz es la fuente de verdad; UI UX Pro Max propone y audita dentro de él (ADR-012).
+- Diseño: `DESIGN.md` en la raíz es la fuente de verdad (0.2.0: tema oscuro único con acento cobre); UI UX Pro Max propone y audita dentro de él (ADR-012).
 - Las reglas no negociables y los límites (Siempre / Preguntar primero / Nunca) están en `.specify/memory/constitution.md`.
 
 ## Roles (MVP)
@@ -82,6 +82,7 @@ Antes de dar una tarea por terminada: `lint`, `typecheck`, `test` y, si se tocó
 - `src/lib/auth/`: Better Auth (`auth.ts`, `getAuth()`), `session.ts` (`getVerifiedSession`: el único que fabrica `VerifiedSession`). Ruta `src/app/api/auth/[...all]/route.ts`: solo `/sign-in/email`, `/sign-out` y `/get-session`; el proxy la deja pasar solo desde un subdominio de barbería.
 - `src/lib/admin/`: capa de servidor del panel (agente principal): `session.ts` (quién es y si es admin de esta barbería), `actions.ts` (server actions, incluido `confirmPanelAccess`, segundo paso del login), `queries.ts`, `schemas.ts` (Zod compartido), `action-state.ts`.
 - `src/lib/time.ts`: único módulo de zona horaria y formatos `es-CO` (constitución IV); `createZoneConverter` para cálculos masivos.
+- `src/lib/storefront/hours.ts`: portada (spec 006), lógica pura: horario semanal derivado de los tramos de los barberos activos, estado de apertura ("Abierto ahora · hasta…") y enlace "Ver mapa". Los datos salen de `getBookingCatalog` (`weeklyHours`), en la misma transacción que el catálogo.
 - `src/lib/booking/`: reserva pública (agente principal): `availability.ts` (cálculo puro de huecos), `queries.ts`, `book.ts`, `submit.ts` (resuelve la barbería del **Host**, nunca de un dato del navegador), `actions.ts`, `schemas.ts`, `phone.ts`, `messages.ts`.
 - `src/lib/cancellation/`: cancelación con enlace (agente principal): `token.ts` (token de 256 bits, hash SHA-256, URL del enlace), `queries.ts` (lectura; abrir el enlace nunca cancela), `cancel.ts` (`submitCancellation`: resuelve la barbería del **Host** y cancela con una sola sentencia atómica), `actions.ts`, `schemas.ts`, `messages.ts`, `cancellation-state.ts`.
 - `src/lib/email/`: `send.ts` (transporte `outbox` en desarrollo y tests, escribe en `.outbox/`; `resend` en producción; el outbox está prohibido en producción), `confirmation.ts` (plantilla HTML con `escapeHtml`; `sendConfirmation` nunca lanza), `escape.ts`. Variables: `EMAIL_TRANSPORT`, `EMAIL_FROM`, `RESEND_API_KEY`.
@@ -89,7 +90,8 @@ Antes de dar una tarea por terminada: `lint`, `typecheck`, `test` y, si se tocó
 - `src/lib/validation.ts`: `toFieldErrors`, conversión única de errores de Zod.
 - `src/app/s/[subdomain]/reservar/` (flujo en 4 pasos guardado en la URL; "Lo más pronto" salta al paso de datos), `cancelar/[token]/` (el GET muestra, el botón cancela) y `privacidad/` (plantilla pendiente de revisión legal).
 - `src/components/forms/`: campos de formulario compartidos por el panel y la reserva.
-- `src/app/s/[subdomain]/admin/`: panel (`login/` y el grupo `(panel)/` protegido). `/admin` es la **agenda** (día y barbero por `?dia=&barbero=`; `src/lib/admin/agenda.ts` y `src/components/admin/agenda-table.tsx`).
+- `src/app/s/[subdomain]/page.tsx`: **portada** de la barbería (spec 006): descripción, estado de apertura, dirección, servicios con "Reservar" (→ `/reservar?servicio=<id>`, paso 2) y horario; componentes en `src/components/storefront/`.
+- `src/app/s/[subdomain]/admin/`: panel (`login/` y el grupo `(panel)/` protegido). `/admin` es la **agenda** (día y barbero por `?dia=&barbero=`; `src/lib/admin/agenda.ts` y `src/components/admin/agenda-table.tsx`). `/admin/mi-barberia`: el admin edita la descripción y la dirección de su barbería (las únicas columnas de `barbershops` que puede modificar: privilegio de columna + política `barbershops_update`, migración `0002`).
 - `scripts/`: herramientas del super admin (`create-barbershop.mts`), `db-reset.mts` y `measure-ttfb.mjs`.
 - `src/components/` (`ui/` es de shadcn), `src/lib/`: utilidades, capa de datos, login, esquemas Zod compartidos.
 - `db/`: base de datos. `migrations/` (dbmate; `0001_baseline.sql` sustituyó a las migraciones de Supabase), `seed.sql` (solo local), `tests/` (pgTAP), `init/roles.sh` (roles, idempotente), `postgresql.conf` y `pg_hba.conf` (sin `trust`). `docker/db/Dockerfile`: PostgreSQL 17 + pgTAP. `compose.dev.yml`: base local y servicio `migrate`.
@@ -194,4 +196,4 @@ Vault: C:/Users/Bsrid/OneDrive/Escritorio/Obsidian/Barbería
 5. Si hubo revisión de los agentes, guarda el informe consolidado en `Revisiones/`.
 
 ## Siguiente paso
-**Migración a PostgreSQL propio terminada (spec 005, ADR-017, constitución 1.2.1):** implementada, revisada por los tres agentes (dos pasadas) y fusionada en `main`. Siguiente: la **fase 7: despliegue de pruebas en el VPS**, cumpliendo los requisitos del informe `Revisiones/2026-10-13-spec-005-migracion-postgresql.md` del vault. Detalle en `Decisiones/ADR-017`, `Migracion-PostgreSQL/` y `Pendientes.md` del vault. Repositorio: `https://github.com/Bs02c/Barb.git` (`origin`).
+**Migración a PostgreSQL propio (spec 005) y portada con estilo oscuro (spec 006, `DESIGN.md` 0.2.0) terminadas** y fusionadas en `main`. Siguiente: la **fase 7: despliegue de pruebas en el VPS**, cumpliendo los requisitos del informe `Revisiones/2026-10-13-spec-005-migracion-postgresql.md` del vault. Detalle en `Decisiones/ADR-017`, `Migracion-PostgreSQL/` y `Pendientes.md` del vault. Repositorio: `https://github.com/Bs02c/Barb.git` (`origin`).

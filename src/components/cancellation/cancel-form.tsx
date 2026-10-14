@@ -34,7 +34,7 @@ export function CancelForm({
         </div>
         <Link
           href="/reservar"
-          className="w-fit rounded-sm font-medium text-selection underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="w-fit rounded-sm font-medium text-link underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           Reservar otra cita
         </Link>
@@ -48,7 +48,7 @@ export function CancelForm({
     <form action={action} className="flex flex-col gap-4">
       <BookingSummary items={items} />
       {state && !state.ok && (
-        <div role="alert" className="flex items-start gap-2 text-sm font-medium text-destructive">
+        <div role="alert" className="flex items-start gap-2 text-sm font-medium text-destructive-text">
           <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <p>{state.message}</p>
         </div>

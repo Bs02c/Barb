@@ -9,7 +9,7 @@ import { FormMessage, SubmitButton, TextField } from "@/components/forms/fields"
 import { useAdminForm } from "@/components/admin/use-admin-form";
 import type { ActionState } from "@/lib/admin/action-state";
 import { createService, deleteService, setServiceActive, updateService } from "@/lib/admin/actions";
-import { serviceSchema } from "@/lib/admin/schemas";
+import { SERVICE_DESCRIPTION_MAX, serviceSchema } from "@/lib/admin/schemas";
 import { cn } from "@/lib/utils";
 
 /** Servicio listo para mostrar: el precio ya viene formateado desde el servidor (formatPrice). */
@@ -20,12 +20,14 @@ export type ServiceRow = {
   price: number;
   priceLabel: string;
   is_active: boolean;
+  description: string | null;
 };
 
 type Errors = Record<string, string[]> | undefined;
 
 function ServiceFields({ errors, service }: { errors: Errors; service?: ServiceRow }) {
   return (
+    <div className="flex flex-col gap-4">
     <div className="grid gap-4 sm:grid-cols-[2fr_1fr_1fr]">
       <TextField
         label="Nombre"
@@ -58,6 +60,15 @@ function ServiceFields({ errors, service }: { errors: Errors; service?: ServiceR
         defaultValue={service?.price}
         required
         errors={errors?.price}
+      />
+    </div>
+      <TextField
+        label="Descripción (opcional)"
+        name="description"
+        defaultValue={service?.description ?? ""}
+        autoComplete="off"
+        maxLength={SERVICE_DESCRIPTION_MAX}
+        errors={errors?.description}
       />
     </div>
   );

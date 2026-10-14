@@ -30,14 +30,14 @@ select hasnt_role('anon', 'el rol anon no existe');
 -- Matriz de privilegios esperada. privs = privilegios de TABLA; upd_cols = columnas con UPDATE.
 create temp table expected_privs (tbl text, role text, privs text[], upd_cols text[]);
 insert into expected_privs values
-  ('barbershops',      'authenticated', array['SELECT'], array[]::text[]),
+  ('barbershops',      'authenticated', array['SELECT'], array['address', 'description']),
   ('barbershops',      'service_role',  array['SELECT'], array[]::text[]),
   ('profiles',         'authenticated', array['SELECT'], array[]::text[]),
   ('profiles',         'service_role',  array[]::text[], array[]::text[]),
   ('barbers',          'authenticated', array['DELETE', 'INSERT', 'SELECT'], array['is_active', 'name']),
   ('barbers',          'service_role',  array['SELECT'], array[]::text[]),
   ('services',         'authenticated', array['DELETE', 'INSERT', 'SELECT'],
-                                        array['duration_minutes', 'is_active', 'name', 'price']),
+                                        array['description', 'duration_minutes', 'is_active', 'name', 'price']),
   ('services',         'service_role',  array['SELECT'], array[]::text[]),
   ('barber_schedules', 'authenticated', array['DELETE', 'INSERT', 'SELECT'], array[]::text[]),
   ('barber_schedules', 'service_role',  array['SELECT'], array[]::text[]),
@@ -120,8 +120,8 @@ where p.pronamespace = 'private'::regnamespace and p.proname !~ '^time(multi)?ra
 select is(
   (select array_agg(name order by name) from private_functions
    where has_function_privilege('authenticated', sig, 'execute')),
-  array['current_barbershop_id', 'current_user_id', 'is_super_admin'],
-  'authenticated solo ejecuta current_user_id, current_barbershop_id e is_super_admin'
+  array['current_barbershop_id', 'current_user_id', 'is_super_admin', 'is_valid_timezone'],
+  'authenticated solo ejecuta current_user_id, current_barbershop_id, is_super_admin e is_valid_timezone (check de timezone en el UPDATE de barbershops, spec 006)'
 );
 select is(
   (select coalesce(array_agg(name order by name), array[]::text[]) from private_functions
@@ -138,6 +138,11 @@ select is(
 select ok(
   not has_function_privilege('public', 'private.is_valid_timezone(text)', 'execute'),
   'PUBLIC no ejecuta private.is_valid_timezone(text)'
+);
+select ok(
+  not has_function_privilege('service_role', 'private.is_valid_timezone(text)', 'execute')
+  and not has_function_privilege('app_login', 'private.is_valid_timezone(text)', 'execute'),
+  'service_role y app_login no ejecutan private.is_valid_timezone(text)'
 );
 
 -- Las funciones security definer fijan search_path

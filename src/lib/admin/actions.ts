@@ -6,13 +6,21 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { z } from "zod";
 import type { ActionState } from "@/lib/admin/action-state";
-import { activeSchema, barberSchema, blockSchema, idSchema, scheduleSlotSchema, serviceSchema } from "@/lib/admin/schemas";
+import {
+  activeSchema,
+  barberSchema,
+  barbershopInfoSchema,
+  blockSchema,
+  idSchema,
+  scheduleSlotSchema,
+  serviceSchema,
+} from "@/lib/admin/schemas";
 import { getAdminContext, type AdminBarbershop } from "@/lib/admin/session";
 import { getAuth } from "@/lib/auth/auth";
 import type { VerifiedSession } from "@/lib/auth/session";
 import { withAdmin, type Tx } from "@/lib/db/client";
 import { toDbError } from "@/lib/db/errors";
-import { appointments, barberBlocks, barberSchedules, barbers, services } from "@/lib/db/schema";
+import { appointments, barberBlocks, barberSchedules, barbers, barbershops, services } from "@/lib/db/schema";
 import { logSafeError } from "@/lib/log";
 import { localDateTimeToUtc } from "@/lib/time";
 import { toFieldErrors } from "@/lib/validation";
@@ -72,8 +80,13 @@ async function write(session: VerifiedSession, fn: (tx: Tx) => Promise<unknown>)
   }
 }
 
+/**
+ * Revalida el panel y la portada pública, que muestra servicios, horario y datos de la barbería. Hoy la
+ * portada se genera en cada petición; esto la mantiene al día si algún día se cachea (spec 006, MAINT-004).
+ */
 function refresh(subdomain: string) {
   revalidatePath(`/s/${subdomain}/admin`, "layout");
+  revalidatePath(`/s/${subdomain}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -175,16 +188,18 @@ export async function createService(subdomain: string, _prev: ActionState, formD
   const parsed = parseForm(serviceSchema, formData);
   if (!parsed.success) return invalid(parsed.error);
 
-  const { name, duration_minutes, price } = parsed.data;
+  const { name, duration_minutes, price, description } = parsed.data;
   const failed = await write(session, (tx) =>
-    tx.insert(services).values({ barbershopId: barbershop.id, name, durationMinutes: duration_minutes, price: String(price) }),
+    tx
+      .insert(services)
+      .values({ barbershopId: barbershop.id, name, durationMinutes: duration_minutes, price: String(price), description }),
   );
   if (failed) return failed;
   refresh(subdomain);
   return { ok: true, message: "Servicio añadido." };
 }
 
-/** formData: id, name, duration_minutes, price */
+/** formData: id, name, duration_minutes, price, description (opcional; vacío la quita) */
 export async function updateService(subdomain: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   const { session } = await requireAdmin(subdomain);
   const id = parseForm(idSchema, formData);
@@ -192,11 +207,11 @@ export async function updateService(subdomain: string, _prev: ActionState, formD
   if (!id.success) return invalid(id.error);
   if (!parsed.success) return invalid(parsed.error);
 
-  const { name, duration_minutes, price } = parsed.data;
+  const { name, duration_minutes, price, description } = parsed.data;
   const failed = await write(session, (tx) =>
     tx
       .update(services)
-      .set({ name, durationMinutes: duration_minutes, price: String(price) })
+      .set({ name, durationMinutes: duration_minutes, price: String(price), description })
       .where(eq(services.id, id.data.id)),
   );
   if (failed) return failed;
@@ -228,6 +243,36 @@ export async function deleteService(subdomain: string, _prev: ActionState, formD
   if (failed) return failed;
   refresh(subdomain);
   return { ok: true, message: "Servicio eliminado." };
+}
+
+// ---------------------------------------------------------------------------
+// Mi barbería (spec 006)
+// ---------------------------------------------------------------------------
+
+/**
+ * formData: description, address (opcionales; vacío los quita de la portada).
+ * Solo esas dos columnas: el privilegio de columna de la base rechaza cualquier otra (42501) y la
+ * política barbershops_update limita la fila a la barbería del admin. El filtro por barbershop.id es
+ * defensa en profundidad; si no se actualiza ninguna fila, no tiene permiso.
+ */
+export async function updateBarbershopInfo(subdomain: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const { session, barbershop } = await requireAdmin(subdomain);
+  const parsed = parseForm(barbershopInfoSchema, formData);
+  if (!parsed.success) return invalid(parsed.error);
+
+  let updated = 0;
+  const failed = await write(session, async (tx) => {
+    const rows = await tx
+      .update(barbershops)
+      .set({ description: parsed.data.description, address: parsed.data.address })
+      .where(eq(barbershops.id, barbershop.id))
+      .returning({ id: barbershops.id });
+    updated = rows.length;
+  });
+  if (failed) return failed;
+  if (updated === 0) return { ok: false, message: "No tienes permiso para hacer esto." };
+  refresh(subdomain);
+  return { ok: true, message: "Datos guardados." };
 }
 
 // ---------------------------------------------------------------------------

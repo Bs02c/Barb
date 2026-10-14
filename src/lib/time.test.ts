@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { createZoneConverter, formatPrice, formatTimeOfDay, localDateTimeToUtc, utcToLocalDateTime } from "./time";
+import {
+  createZoneConverter,
+  formatDuration,
+  formatPrice,
+  formatTimeOfDay,
+  localDateTimeToUtc,
+  toLocalTimeOfDay,
+  utcToLocalDateTime,
+} from "./time";
 
 describe("zona horaria de la barbería", () => {
   it("10:00 en Bogotá es 15:00 UTC (spec 001, historia 3)", () => {
@@ -32,6 +40,14 @@ describe("formatos en español de Colombia", () => {
 
   it("precio en pesos sin decimales", () => {
     expect(formatPrice(25000).replace(/\s/g, " ")).toBe("$ 25.000");
+  });
+
+  it("duración de un servicio en horas y minutos (spec 006)", () => {
+    expect([20, 60, 75, 480].map(formatDuration)).toEqual(["20 min", "1 h", "1 h 15 min", "8 h"]);
+  });
+
+  it("hora local HH:MM de un instante, en la zona de la barbería (spec 006)", () => {
+    expect(toLocalTimeOfDay(new Date("2026-10-15T03:05:00Z"), "America/Bogota")).toBe("22:05");
   });
 });
 

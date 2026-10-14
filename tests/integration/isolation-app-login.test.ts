@@ -27,7 +27,8 @@ const { getAdminContext } = await import("@/lib/admin/session");
 const { getVerifiedSession } = await import("@/lib/auth/session");
 const { withAdmin } = await import("@/lib/db/client");
 const { toDbError } = await import("@/lib/db/errors");
-const { barbers } = await import("@/lib/db/schema");
+const { barbers, barbershops } = await import("@/lib/db/schema");
+const { eq } = await import("drizzle-orm");
 
 const ROOT = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "localhost:3000";
 const initial = { ok: true, message: "" } as const;
@@ -66,7 +67,8 @@ function form(fields: Record<string, string>) {
 async function snapshotB() {
   return {
     barbers: await query("select id, name, is_active from public.barbers where barbershop_id = $1 order by id", [shopB.id]),
-    services: await query("select id, name, price, is_active from public.services where barbershop_id = $1 order by id", [shopB.id]),
+    barbershop: await query("select name, subdomain, timezone, is_active, description, address from public.barbershops where id = $1", [shopB.id]),
+    services: await query("select id, name, price, is_active, description from public.services where barbershop_id = $1 order by id", [shopB.id]),
     slots: await query("select id from public.barber_schedules where barbershop_id = $1 order by id", [shopB.id]),
     blocks: await query("select id from public.barber_blocks where barbershop_id = $1 order by id", [shopB.id]),
     appointments: await query("select id, status from public.appointments where barbershop_id = $1 order by id", [shopB.id]),
@@ -198,5 +200,76 @@ describe("admin de A con ids de B (las 15 operaciones del panel)", () => {
     );
     expect(toDbError(error)?.code).toBe("42501");
     expect((await snapshotB()).barbers.map((b) => b.name)).not.toContain("Intruso");
+  });
+});
+
+describe("Mi barbería y descripción de servicios (spec 006)", () => {
+  it("A guarda la descripción y la dirección de su barbería; vacío las quita", async () => {
+    const a = shopA.subdomain;
+    const saved = await actions.updateBarbershopInfo(a, initial, form({ description: " Cortes de prueba. ", address: "Calle 1 # 2-3" }));
+    expect(saved).toEqual({ ok: true, message: "Datos guardados." });
+    expect(await query("select description, address from public.barbershops where id = $1", [shopA.id])).toEqual([
+      { description: "Cortes de prueba.", address: "Calle 1 # 2-3" },
+    ]);
+    expect(await queries.getBarbershopInfo(shopA)).toEqual({ description: "Cortes de prueba.", address: "Calle 1 # 2-3" });
+
+    await actions.updateBarbershopInfo(a, initial, form({ description: "", address: "" }));
+    expect(await query("select description, address from public.barbershops where id = $1", [shopA.id])).toEqual([
+      { description: null, address: null },
+    ]);
+  });
+
+  it("A no puede usar la acción en el subdominio de B: redirige al login y B no cambia", async () => {
+    const before = await snapshotB();
+    await expect(actions.updateBarbershopInfo(shopB.subdomain, initial, form({ description: "Hackeado" }))).rejects.toThrow(
+      "redirect /admin/login",
+    );
+    expect(await snapshotB()).toEqual(before);
+  });
+
+  it("un UPDATE directo de la barbería de B con la identidad de A no cambia ninguna fila (RLS)", async () => {
+    const before = await snapshotB();
+    const session = await getVerifiedSession();
+    const rows = await withAdmin(session!, (tx) =>
+      tx.update(barbershops).set({ description: "Hackeado" }).where(eq(barbershops.id, shopB.id)).returning({ id: barbershops.id }),
+    );
+    expect(rows).toEqual([]);
+    expect(await snapshotB()).toEqual(before);
+  });
+
+  it("A no puede cambiar el nombre, el subdominio, la zona ni el estado de su propia barbería (42501)", async () => {
+    const session = await getVerifiedSession();
+    for (const change of [{ name: "Otro" }, { subdomain: "otro" }, { timezone: "UTC" }, { isActive: false }]) {
+      const error = await withAdmin(session!, (tx) => tx.update(barbershops).set(change).where(eq(barbershops.id, shopA.id))).then(
+        () => null,
+        (e: unknown) => e,
+      );
+      expect(toDbError(error)?.code).toBe("42501");
+    }
+    expect(await query("select name, is_active from public.barbershops where id = $1", [shopA.id])).toEqual([
+      { name: "Test A", is_active: true },
+    ]);
+  });
+
+  it("la descripción de un servicio de B no cambia desde A", async () => {
+    const before = await snapshotB();
+    await actions.updateService(
+      shopA.subdomain,
+      initial,
+      form({ id: ids.service, name: "Corte B", duration_minutes: "30", price: "1000", description: "Hackeado" }),
+    );
+    expect(await snapshotB()).toEqual(before);
+  });
+
+  it("A crea un servicio con descripción, lo ve en su lista y al vaciarla queda null", async () => {
+    const a = shopA.subdomain;
+    expect(
+      await actions.createService(a, initial, form({ name: "Corte A", duration_minutes: "30", price: "20000", description: "Con lavado." })),
+    ).toMatchObject({ ok: true });
+    const [created] = (await queries.listServices()).filter((s) => s.name === "Corte A");
+    expect(created.description).toBe("Con lavado.");
+
+    await actions.updateService(a, initial, form({ id: created.id, name: "Corte A", duration_minutes: "30", price: "20000", description: "" }));
+    expect((await queries.listServices()).find((s) => s.id === created.id)?.description).toBeNull();
   });
 });

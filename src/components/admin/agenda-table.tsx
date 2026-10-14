@@ -52,7 +52,7 @@ function PhoneLink({ phone }: { phone: string }) {
   return (
     <a
       href={`tel:${phone}`}
-      className="inline-flex min-h-11 items-center rounded-md font-medium text-selection underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      className="inline-flex min-h-11 items-center rounded-md font-medium text-link underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       {phone}
     </a>
@@ -84,7 +84,7 @@ function CancelAppointment({
         render={
           <Button
             variant="outline"
-            className="text-destructive hover:text-destructive"
+            className="text-destructive-text hover:text-destructive-text"
             aria-label={`Cancelar la cita de ${row.customerName} a las ${row.startLabel}`}
           />
         }
