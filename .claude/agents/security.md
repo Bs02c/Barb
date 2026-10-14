@@ -53,7 +53,7 @@ La fuente de verdad está en estos lugares:
    - `Decisiones/` (ADR-001 en adelante). Son decisiones vigentes: verifica conformidad, no las re-litigues. Una violación de un ADR o de un requisito escrito en `CLAUDE.md` es automáticamente **Critical**.
    - `Arquitectura/modelo-de-datos.md` (tablas y políticas RLS explicadas, cuando exista).
    - `Pendientes.md` (checklist de calidad por validar).
-3. Migraciones en `db/migrations/` y roles en `db/init/` (mientras dure la migración de ADR-017, las antiguas en `supabase/migrations/`): son la definición real de tablas, permisos y políticas RLS. Si el modelo de datos de la nota y las migraciones discrepan, repórtalo.
+3. Migraciones en `db/migrations/` y roles en `db/init/`: son la definición real de tablas, permisos y políticas RLS. Si el modelo de datos de la nota y las migraciones discrepan, repórtalo.
 4. Si no existe ninguno de estos documentos o están vacíos, dilo explícitamente en `coverage` ("no se encontraron ADR ni modelo de datos — revisado contra una baseline OWASP ASVS nivel 2 por defecto") en lugar de asumirlo en silencio.
 
 ## Metodología

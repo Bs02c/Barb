@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// Tests E2E y de accesibilidad (ADR-012). Corren contra la app local y Supabase local
-// (npm run db:start); el subdominio de la barbería de demostración se resuelve con *.localhost.
+// Tests E2E y de accesibilidad (ADR-012). Corren contra la app local y la base local
+// (npm run db:start, base PostgreSQL local); el subdominio de la barbería de demostración se resuelve con *.localhost.
 export default defineConfig({
   testDir: "./tests/e2e",
   globalSetup: "./tests/e2e/global-setup.ts", // vacía .outbox/ (correos con enlaces de ejecuciones anteriores)
@@ -14,7 +14,8 @@ export default defineConfig({
     baseURL: "http://labarberia.localhost:3000",
     trace: "retain-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  // PLAYWRIGHT_CHANNEL=msedge usa el Edge del sistema si no se pudo descargar el Chromium de Playwright.
+  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], channel: process.env.PLAYWRIGHT_CHANNEL } }],
   webServer: {
     command: "npm run dev",
     url: "http://localhost:3000",

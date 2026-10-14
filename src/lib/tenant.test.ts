@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveTenant } from "./tenant";
+import { proxyAction, resolveTenant } from "./tenant";
 
 describe("resolveTenant", () => {
   const prod = "midominio.com";
@@ -44,5 +44,35 @@ describe("resolveTenant", () => {
     expect(resolveTenant("midominio.com.atacante.com", prod)).toEqual({ kind: "invalid" });
     expect(resolveTenant("falsomidominio.com", prod)).toEqual({ kind: "invalid" });
     expect(resolveTenant(null, prod)).toEqual({ kind: "invalid" });
+  });
+});
+
+describe("proxyAction", () => {
+  const prod = "midominio.com";
+
+  it("reescribe las páginas de una barbería a /s/<barbería>", () => {
+    expect(proxyAction("labarberia.midominio.com", "/reservar", prod)).toEqual({
+      kind: "rewrite",
+      path: "/s/labarberia/reservar",
+    });
+    expect(proxyAction("labarberia.midominio.com", "/admin", prod)).toEqual({ kind: "rewrite", path: "/s/labarberia/admin" });
+  });
+
+  it("deja pasar Better Auth sin reescribir solo desde una barbería", () => {
+    expect(proxyAction("labarberia.midominio.com", "/api/auth/sign-in/email", prod)).toEqual({ kind: "next" });
+    expect(proxyAction("midominio.com", "/api/auth/sign-in/email", prod)).toEqual({ kind: "not-found" });
+    expect(proxyAction("otrodominio.com", "/api/auth/get-session", prod)).toEqual({ kind: "not-found" });
+  });
+
+  it("no confunde rutas que solo empiezan igual", () => {
+    expect(proxyAction("labarberia.midominio.com", "/api/authx", prod)).toEqual({
+      kind: "rewrite",
+      path: "/s/labarberia/api/authx",
+    });
+  });
+
+  it("en el dominio raíz las rutas internas /s no existen", () => {
+    expect(proxyAction("midominio.com", "/", prod)).toEqual({ kind: "next" });
+    expect(proxyAction("midominio.com", "/s/labarberia", prod)).toEqual({ kind: "not-found" });
   });
 });

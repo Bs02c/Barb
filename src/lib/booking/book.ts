@@ -1,9 +1,11 @@
 import "server-only";
-import type { PostgrestError } from "@supabase/supabase-js";
+import { and, count, eq, gt } from "drizzle-orm";
 import type { PublicBarbershop } from "@/lib/barbershops";
 import { cancelUrl, generateCancelToken, hashToken } from "@/lib/cancellation/token";
+import { withService } from "@/lib/db/client";
+import { toDbError } from "@/lib/db/errors";
+import { appointments } from "@/lib/db/schema";
 import type { ConfirmationData } from "@/lib/email/confirmation";
-import { createServiceClient } from "@/lib/supabase/service";
 import { formatDateTime, formatPrice, toLocalDate } from "@/lib/time";
 import type { BookingResult } from "./booking-state";
 import { MESSAGES } from "./messages";
@@ -34,28 +36,32 @@ async function attempt(barbershop: PublicBarbershop, input: BookingInput, now: D
   const selection = await resolveSelection(barbershop, input.service_id, input.barber_id);
   if (!selection) return { result: UNAVAILABLE };
 
-  const db = createServiceClient();
   const localDate = toLocalDate(input.starts_at, barbershop.timezone);
 
   // 2 y 3 en paralelo (revisión fase 4, PERF-006):
   // - revalidar la hora con datos actuales: horario, bloqueos, citas, antelación y horizonte (FR-008);
   // - tope de citas activas futuras por número en esta barbería (mensaje rápido; el trigger lo garantiza).
-  const [slots, active] = await Promise.all([
+  const [slots, [active]] = await Promise.all([
     loadSlots(barbershop, selection, { now, fromDate: localDate, days: 1 }),
-    db
-      .from("appointments")
-      .select("id", { count: "exact", head: true })
-      .eq("barbershop_id", barbershop.id)
-      .eq("customer_phone", input.customer_phone)
-      .eq("status", "active")
-      .gt("starts_at", now.toISOString()),
+    withService((tx) =>
+      tx
+        .select({ count: count() })
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.barbershopId, barbershop.id),
+            eq(appointments.customerPhone, input.customer_phone),
+            eq(appointments.status, "active"),
+            gt(appointments.startsAt, now),
+          ),
+        ),
+    ),
   ]);
-  if (active.error) throw active.error;
 
   const requested = new Date(input.starts_at).toISOString();
   const slot = slots.find((s) => s.startsAt === requested);
   if (!slot) return { result: SLOT_TAKEN };
-  if ((active.count ?? 0) >= MAX_ACTIVE_PER_PHONE) return { result: LIMIT_REACHED };
+  if (active.count >= MAX_ACTIVE_PER_PHONE) return { result: LIMIT_REACHED };
 
   // 4. Insertar con copia de duración y precio y fecha de consentimiento (FR-011).
   const { service } = selection;
@@ -63,22 +69,26 @@ async function attempt(barbershop: PublicBarbershop, input: BookingInput, now: D
   const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
   // Token de cancelación nuevo en cada intento; en la base solo su hash (spec 003, FR-003).
   const token = generateCancelToken();
-  const { error } = await db.from("appointments").insert({
-    barbershop_id: barbershop.id,
-    barber_id: slot.barberId,
-    service_id: service.id,
-    starts_at: startsAt.toISOString(),
-    ends_at: endsAt.toISOString(),
-    service_duration_minutes: service.durationMinutes,
-    service_price: service.price,
-    customer_name: input.customer_name,
-    customer_phone: input.customer_phone,
-    customer_email: input.customer_email,
-    data_consent_at: now.toISOString(),
-    cancel_token_hash: hashToken(token),
-  });
-
-  if (error) return fromDatabase(error, input);
+  try {
+    await withService((tx) =>
+      tx.insert(appointments).values({
+        barbershopId: barbershop.id,
+        barberId: slot.barberId,
+        serviceId: service.id,
+        startsAt,
+        endsAt,
+        serviceDurationMinutes: service.durationMinutes,
+        servicePrice: String(service.price),
+        customerName: input.customer_name,
+        customerPhone: input.customer_phone,
+        customerEmail: input.customer_email,
+        dataConsentAt: now,
+        cancelTokenHash: hashToken(token),
+      }),
+    );
+  } catch (error) {
+    return fromDatabase(error, input);
+  }
 
   const barberName = selection.barbers.find((b) => b.id === slot.barberId)?.name ?? "";
   const summary = {
@@ -99,13 +109,15 @@ async function attempt(barbershop: PublicBarbershop, input: BookingInput, now: D
   };
 }
 
-function fromDatabase(error: PostgrestError, input: BookingInput): Attempt {
+/** Decide solo por código y restricción (spec 005, research §8); cualquier otro error sube tal cual. */
+function fromDatabase(error: unknown, input: BookingInput): Attempt {
+  const db = toDbError(error);
   // El tope por número ganó la carrera: el conteo previo vio menos citas que el trigger.
-  if (error.code === "23514" && error.message.includes("appointments_phone_limit")) return { result: LIMIT_REACHED };
+  if (db?.constraint === "appointments_phone_limit") return { result: LIMIT_REACHED };
   // Otra reserva tomó el hueco. Con "Lo más pronto" se reintenta: puede quedar otro barbero libre
   // a esa hora (research §3; revisión fase 4, PERF-005).
-  if (error.code === "23P01") return input.barber_id === EARLIEST ? { retry: true } : { result: SLOT_TAKEN };
-  if (error.code === "40P01") return { retry: true }; // bloqueo mutuo entre reservas simultáneas
+  if (db?.code === "23P01") return input.barber_id === EARLIEST ? { retry: true } : { result: SLOT_TAKEN };
+  if (db?.code === "40P01") return { retry: true }; // bloqueo mutuo entre reservas simultáneas
   throw error;
 }
 

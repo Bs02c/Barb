@@ -10,9 +10,9 @@ export function generateCancelToken(): string {
   return randomBytes(32).toString("base64url");
 }
 
-/** Hash en el formato `bytea` de PostgREST ("\x" + hex), para insertar y para buscar. */
-export function hashToken(token: string): string {
-  return `\\x${createHash("sha256").update(token).digest("hex")}`;
+/** SHA-256 del token (32 bytes), tal como se guarda en `appointments.cancel_token_hash` (bytea). */
+export function hashToken(token: string): Buffer {
+  return createHash("sha256").update(token).digest();
 }
 
 /**

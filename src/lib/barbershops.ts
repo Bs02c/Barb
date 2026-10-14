@@ -1,6 +1,8 @@
 import "server-only";
+import { and, eq } from "drizzle-orm";
 import { cache } from "react";
-import { createServiceClient } from "@/lib/supabase/service";
+import { withService } from "@/lib/db/client";
+import { barbershops } from "@/lib/db/schema";
 
 // Datos de una barbería que se pueden mostrar en su página pública.
 export type PublicBarbershop = {
@@ -12,18 +14,18 @@ export type PublicBarbershop = {
 
 /**
  * Barbería activa con ese subdominio, o null si no existe o está desactivada.
- * `cache` evita repetir la consulta entre generateMetadata y la página en la misma petición.
+ * Con service_role (web pública, sin sesión). `cache` evita repetir la consulta entre
+ * generateMetadata y la página en la misma petición.
  */
 export const getPublicBarbershop = cache(
   async (subdomain: string): Promise<PublicBarbershop | null> => {
-    const { data, error } = await createServiceClient()
-      .from("barbershops")
-      .select("id, name, subdomain, timezone")
-      .eq("subdomain", subdomain)
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (error) throw error;
-    return data;
+    const [row] = await withService((tx) =>
+      tx
+        .select({ id: barbershops.id, name: barbershops.name, subdomain: barbershops.subdomain, timezone: barbershops.timezone })
+        .from(barbershops)
+        .where(and(eq(barbershops.subdomain, subdomain), eq(barbershops.isActive, true)))
+        .limit(1),
+    );
+    return row ?? null;
   },
 );

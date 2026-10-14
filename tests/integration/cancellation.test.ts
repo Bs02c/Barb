@@ -5,17 +5,12 @@ import { bookAppointment } from "@/lib/booking/book";
 import type { BookingInput } from "@/lib/booking/schemas";
 import { submitCancellation } from "@/lib/cancellation/cancel";
 import { getCancellation } from "@/lib/cancellation/queries";
-import { createServiceClient } from "@/lib/supabase/service";
 import { localDateTimeToUtc } from "@/lib/time";
+import { deleteBarbershop, insert, query } from "./helpers/db";
 
 // Cancelación con enlace (spec 003: historia 2, FR-005 a FR-008). Crea dos barberías de prueba
 // propias y las borra al terminar. Cada test usa su propio día para poder ejecutarse solo.
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-if (!url || !["127.0.0.1", "localhost"].includes(new URL(url).hostname)) {
-  throw new Error("Este test solo corre contra Supabase local: revisa .env.local"); // ADR-014
-}
-
-const db = createServiceClient();
+// Los datos se preparan como db_owner (helpers/db.ts, solo base local).
 const TZ = "America/Bogota";
 const NOW = localDateTimeToUtc("2030-01-07T08:00", TZ);
 const at = (local: string) => localDateTimeToUtc(local, TZ).toISOString();
@@ -27,12 +22,6 @@ let barber: string;
 let otherBarber: string;
 let service: string;
 let otherService: string;
-
-async function insert<T>(table: string, row: Record<string, unknown>) {
-  const { data, error } = await db.from(table as "barbers").insert(row as never).select("*").single();
-  if (error) throw error;
-  return data as T;
-}
 
 const host = (s: PublicBarbershop) => `${s.subdomain}.${ROOT}`;
 
@@ -53,8 +42,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // Borrar la barbería borra en cascada barberos, servicios, horarios y citas.
-  if (shop) await db.from("barbershops").delete().eq("id", shop.id);
-  if (otherShop) await db.from("barbershops").delete().eq("id", otherShop.id);
+  await deleteBarbershop(shop?.id);
+  await deleteBarbershop(otherShop?.id);
 });
 
 function input(startsAt: string, overrides: Partial<BookingInput> = {}): BookingInput {
@@ -79,10 +68,14 @@ async function book(local: string, target: PublicBarbershop = shop) {
   return confirmation.cancelUrl.split("/cancelar/")[1];
 }
 
+async function appointmentAt(local: string, barberId = barber) {
+  const rows = await query("select * from public.appointments where barber_id = $1 and starts_at = $2", [barberId, at(local)]);
+  if (rows.length !== 1) throw new Error(`se esperaba una cita y hay ${rows.length}`);
+  return rows[0];
+}
+
 async function statusAt(local: string, barberId = barber) {
-  const { data, error } = await db.from("appointments").select("status").eq("barber_id", barberId).eq("starts_at", at(local)).single();
-  if (error) throw error;
-  return data.status;
+  return (await appointmentAt(local, barberId)).status;
 }
 
 describe("getCancellation (abrir el enlace)", () => {
@@ -111,8 +104,8 @@ describe("barbero o servicio desactivado después de reservar", () => {
     expect(result).toMatchObject({ ok: true });
     const token = confirmation!.cancelUrl.split("/cancelar/")[1];
 
-    await db.from("barbers").update({ is_active: false }).eq("id", extraBarber);
-    await db.from("services").update({ is_active: false }).eq("id", extraService);
+    await query("update public.barbers set is_active = false where id = $1", [extraBarber]);
+    await query("update public.services set is_active = false where id = $1", [extraService]);
 
     expect(await getCancellation(shop, token, NOW)).toMatchObject({
       status: "active",
@@ -127,8 +120,7 @@ describe("submitCancellation (pulsar el botón)", () => {
     const token = await book("2030-01-09T09:00");
     expect(await submitCancellation(host(shop), shop.subdomain, token, NOW)).toEqual({ ok: true });
     expect(await statusAt("2030-01-09T09:00")).toBe("cancelled");
-    const { data } = await db.from("appointments").select("cancelled_at").eq("barber_id", barber).eq("starts_at", at("2030-01-09T09:00")).single();
-    expect(data!.cancelled_at).not.toBeNull();
+    expect((await appointmentAt("2030-01-09T09:00")).cancelled_at).not.toBeNull();
 
     const again = await bookAppointment(shop, input(at("2030-01-09T09:00")), NOW);
     expect(again.result).toMatchObject({ ok: true }); // hora liberada

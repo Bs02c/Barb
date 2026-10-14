@@ -127,7 +127,8 @@ Razón: la app debe poder cambiar de servidor sin reescribirse. (ADR-016, ADR-01
   privilegio sobre `profiles` para `service_role`.
 - Que los logs del servidor de base de datos registren valores de filas o parámetros (datos
   personales).
-- Publicar el puerto de PostgreSQL (`ports:`) o usar autenticación `trust`.
+- Publicar el puerto de PostgreSQL (`ports:`) en un servidor, o usar autenticación `trust`. En desarrollo
+  local solo se permite publicarlo en `127.0.0.1` (spec 005, D2).
 - Compartir un mismo PostgreSQL entre pruebas y producción.
 - Sacar un respaldo del VPS sin cifrar.
 - Cargar datos de demostración o ejecutar tests contra producción. Los tests corren solo en la
@@ -160,4 +161,4 @@ Razón: la app debe poder cambiar de servidor sin reescribirse. (ADR-016, ADR-01
   arquitectura, se registra como ADR.
 - Los agentes de revisión verifican el cumplimiento de esta constitución en los hitos que revisan.
 
-**Versión**: 1.2.0 | **Ratificada**: 2026-10-04 | **Última enmienda**: 2026-10-13
+**Versión**: 1.2.1 | **Ratificada**: 2026-10-04 | **Última enmienda**: 2026-10-13
