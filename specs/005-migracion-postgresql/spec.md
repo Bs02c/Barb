@@ -1,6 +1,6 @@
 # Spec: migración de Supabase a PostgreSQL propio
 
-**Rama**: `005-migracion-postgresql` | **Fecha**: 2026-10-13 | **Estado**: borrador, pendiente de aprobación del usuario
+**Rama**: `005-migracion-postgresql` | **Fecha**: 2026-10-13 | **Estado**: aprobada por el usuario (2026-10-13)
 
 **Entrada**: `Decisiones/ADR-017-postgresql-propio-sin-supabase.md` del vault (vigente desde 2026-10-13) y constitución 1.2.0. La fase 7 (despliegue de pruebas) espera a que esta migración termine.
 
