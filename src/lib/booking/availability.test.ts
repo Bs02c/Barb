@@ -34,6 +34,12 @@ describe("computeAvailableSlots", () => {
     expect(result).toHaveLength(14); // 9:00 … 12:15
   });
 
+  it("cada hueco trae su fin = inicio + duración (la barra y la cita usan este, spec 007)", () => {
+    const [first] = computeAvailableSlots(base());
+    expect(first.startsAt).toBe(at(`${MONDAY}T09:00`).toISOString());
+    expect(first.endsAt).toBe(at(`${MONDAY}T09:45`).toISOString());
+  });
+
   it("exige al menos 1 hora de antelación", () => {
     const result = labels(base({ now: at(`${MONDAY}T09:20`) })); // primer inicio posible: 10:20
     expect(result[0]).toMatch(/^10:30 a\. ?m\.$/);

@@ -1,17 +1,29 @@
 import { z } from "zod";
 
 // Esquemas compartidos por los formularios (cliente) y las server actions (servidor).
-// Mismas reglas que los check de la base de datos (db/migrations), con mensajes en español.
+// En general, las mismas reglas que los check de la base de datos (db/migrations), con mensajes en
+// español. Excepción: la regla de "una línea sin caracteres invisibles" de los nombres es solo de la app
+// (la base solo exige su longitud); la defensa del archivo .ics ante nombres antiguos es su escape.
 
-// Los nombres de barberos y servicios salen en la portada, el correo y el archivo de calendario: una sola
-// línea y sin caracteres invisibles, igual que los textos de la portada (revisión spec 007, SEC-001).
-const name = z
-  .string()
-  .trim()
-  .min(1, "Escribe un nombre.")
-  .max(100, "Máximo 100 caracteres.")
-  .refine((v) => !LINE_BREAK.test(v), "Escríbelo en una sola línea.")
-  .refine((v) => LINE_BREAK.test(v) || !INVISIBLE.test(v), "Quita los caracteres especiales invisibles.");
+// Una línea y sin caracteres invisibles: los saltos de línea (también los de Unicode) y los caracteres de
+// control y de formato, incluidas las marcas bidi, que harían que la portada, el correo o el calendario
+// muestren un texto distinto del guardado (revisión spec 006 y spec 007, SEC-001). Se permite el
+// "zero width joiner" (U+200D), que forma emojis compuestos como 👨‍🦰.
+const LINE_BREAK = /[\r\n\u0085\u2028\u2029]/;
+const INVISIBLE = /[\p{Cc}\p{Cf}]/u;
+const ZERO_WIDTH_JOINER = /\u200D/g;
+
+function singleLine<S extends z.ZodString>(schema: S) {
+  return schema
+    .refine((v) => !LINE_BREAK.test(v), "Escríbelo en una sola línea.")
+    .refine(
+      (v) => LINE_BREAK.test(v) || !INVISIBLE.test(v.replace(ZERO_WIDTH_JOINER, "")),
+      "Quita los caracteres especiales invisibles.",
+    );
+}
+
+// Nombres de barberos y servicios: salen en la portada, el correo y el archivo de calendario.
+const name = singleLine(z.string().trim().min(1, "Escribe un nombre.").max(100, "Máximo 100 caracteres."));
 
 const uuid = z.uuid("Identificador inválido.");
 
@@ -28,24 +40,14 @@ export const DESCRIPTION_MAX = 160;
 export const ADDRESS_MAX = 200;
 export const SERVICE_DESCRIPTION_MAX = 200;
 
-// Texto opcional de una línea: sin espacios sobrantes, sin saltos de línea y "" → null ("sin dato").
-// La base exige lo mismo (null o 1–N caracteres, = btrim, sin \r ni \n). Aquí además se rechazan los
-// saltos de línea Unicode y los caracteres de control y de formato invisibles (incluidas las marcas
-// bidi, que harían que la portada muestre un texto distinto del guardado; revisión spec 006, SEC-001).
-const LINE_BREAK = /[\r\n\u0085\u2028\u2029]/;
-const INVISIBLE = /[\p{Cc}\p{Cf}]/u;
+// Texto opcional de una línea (portada): sin espacios sobrantes y "" → null ("sin dato"). La base exige
+// null o 1–N caracteres, = btrim y sin \r ni \n (0002_portada_barberia.sql); aquí, además, singleLine.
 const optionalLine = (max: number) =>
   z
     .string()
     .optional()
     .transform((v) => v?.trim() ?? "")
-    .pipe(
-      z
-        .string()
-        .max(max, `Máximo ${max} caracteres.`)
-        .refine((v) => !LINE_BREAK.test(v), "Escríbelo en una sola línea.")
-        .refine((v) => LINE_BREAK.test(v) || !INVISIBLE.test(v), "Quita los caracteres especiales invisibles."),
-    )
+    .pipe(singleLine(z.string().max(max, `Máximo ${max} caracteres.`)))
     .transform((v) => (v === "" ? null : v));
 
 // "2026-10-13T10:00", como lo da <input type="datetime-local">.

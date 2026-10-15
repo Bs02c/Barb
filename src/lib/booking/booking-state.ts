@@ -19,7 +19,7 @@ export type BookingResult =
       ok: true;
       /** null cuando el envío se descartó en silencio (honeypot): mostrar una confirmación genérica. */
       summary: BookingSummary | null;
-      /** Calendario, WhatsApp y "Cómo llegar" de la confirmación (spec 007); null con honeypot. */
+      /** Google Calendar, archivo .ics y "Cómo llegar" de la confirmación (spec 007); null con honeypot. */
       share: BookingShare | null;
     }
   | {

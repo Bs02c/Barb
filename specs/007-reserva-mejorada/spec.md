@@ -17,7 +17,7 @@ En el paso de fecha y hora, el cliente toca una hora y se queda en la misma pant
 
 **Por qué esta prioridad**: hoy, al tocar una hora se salta directamente al formulario y el cliente no ve a qué hora termina la cita. Las tres plataformas comparadas resumen la cita en una barra fija antes de pedir datos.
 
-**Prueba independiente**: elegir servicio, barbero, fecha y hora, y comprobar que la barra muestra "Corte clásico · 10:00 – 10:30 a. m. · $ 25.000"; cambiar de hora y ver la barra actualizada; "Continuar" lleva al paso de datos con la barra y "Confirmar reserva".
+**Prueba independiente**: elegir servicio, barbero, fecha y hora, y comprobar que la barra muestra "Corte clásico · $ 25.000" y "10:00 a. m. – 10:30 a. m."; cambiar de hora y ver la barra actualizada; "Continuar" lleva al paso de datos con la barra y "Confirmar reserva".
 
 **Escenarios**:
 1. **Dado** el paso 3 sin hora elegida, **cuando** se muestra, **entonces** no hay barra inferior.
@@ -60,20 +60,24 @@ Las fechas del carrusel con pocas horas libres llevan un punto cobre, para que e
 
 ### Historia 4 - Confirmación útil (Prioridad: P2)
 
-En la pantalla "Cita confirmada", el cliente puede añadir la cita a su calendario, compartirla por WhatsApp y abrir cómo llegar.
+En la pantalla "Cita confirmada", el cliente puede añadir la cita a su calendario y abrir cómo llegar.
 
-**Por qué esta prioridad**: añadir la cita al calendario reduce los olvidos (todavía no hay recordatorios, que están en el Roadmap), y compartirla es habitual entre los clientes de una barbería.
+> **Cambio del usuario (2026-10-14), tras probarlo:**
+> - El calendario se añade con un enlace a Google Calendar (botón principal) porque en Android y en el computador el archivo `.ics` solo se descarga. El archivo queda como segunda opción para el iPhone y Outlook.
+> - Se quita "Compartir por WhatsApp": probándolo, el cliente se envía el mensaje a sí mismo, y no aporta. "Escribir a la barbería por WhatsApp" queda como idea para más adelante (necesita el número de la barbería).
+
+**Por qué esta prioridad**: añadir la cita al calendario reduce los olvidos (todavía no hay recordatorios, que están en el Roadmap), y "Cómo llegar" ayuda a quien no conoce el local.
 
 **Prueba independiente**: reservar y pulsar cada botón de la confirmación.
 
 **Escenarios**:
-1. **Dado** una reserva confirmada, **cuando** el cliente pulsa "Añadir a mi calendario", **entonces** descarga un archivo de calendario que los calendarios habituales (Google Calendar, el del iPhone y Outlook) abren con:
+1. **Dado** una reserva confirmada, **cuando** el cliente pulsa "iPhone u Outlook", **entonces** descarga un archivo de calendario que los calendarios habituales (Google Calendar, el del iPhone y Outlook) abren con:
    - título "<servicio> en <barbería>";
    - inicio y fin correctos en la hora de la barbería;
    - la dirección, si la tiene;
    - el barbero en la descripción.
-2. **Dado** una reserva confirmada, **cuando** pulsa "Compartir por WhatsApp", **entonces** se abre WhatsApp con el texto "Reservé <servicio> en <barbería> el <fecha> a las <hora>." para elegir a quién enviarlo.
-3. **Dado** el texto compartido y el archivo de calendario, **cuando** se revisan, **entonces** ninguno contiene el enlace de cancelación ni datos del cliente (nombre, teléfono, correo).
+2. **Dado** una reserva confirmada, **cuando** pulsa "Añadir a Google Calendar", **entonces** se abre Google Calendar con el evento ya rellenado (título, inicio y fin, dirección y barbero) en una pestaña nueva.
+3. **Dado** el enlace a Google Calendar y el archivo de calendario, **cuando** se revisan, **entonces** ninguno contiene el enlace de cancelación ni datos del cliente (nombre, teléfono, correo).
 4. **Dado** una barbería con dirección, **cuando** se muestra la confirmación, **entonces** aparece "Cómo llegar", que abre el mapa de esa dirección en una pestaña nueva; sin dirección, no aparece.
 5. **Dado** un envío descartado por el antispam (honeypot), **cuando** se muestra la confirmación genérica, **entonces** no aparecen estos botones.
 
@@ -86,7 +90,6 @@ En la pantalla "Cita confirmada", el cliente puede añadir la cita a su calendar
 - **Teclado y lector de pantalla:** la barra no tapa el foco; el botón "Continuar" es alcanzable con tabulador; la hora elegida lleva `aria-current` o equivalente; al aparecer la barra, se anuncia el resumen.
 - **Pantallas pequeñas (320 px):** el resumen de la barra se recorta con puntos suspensivos sin tapar el botón; en dos líneas si hace falta.
 - **Cita que cruza la medianoche o un cambio de horario** de la zona: el archivo de calendario usa instantes UTC, así que el calendario del cliente la muestra bien en su zona.
-- **WhatsApp no instalado** (escritorio): el enlace abre WhatsApp Web.
 
 ## Requisitos
 
@@ -105,9 +108,9 @@ En la pantalla "Cita confirmada", el cliente puede añadir la cita a su calendar
 - **FR-006**: Las fechas con 1 a 3 horas libres DEBEN llevar el indicador de pocas horas, con texto accesible.
 
 **Confirmación**
-- **FR-007**: La confirmación DEBE ofrecer "Añadir a mi calendario" con un archivo de calendario estándar con título, inicio, fin, ubicación (si hay dirección) y descripción (barbero).
-- **FR-008**: La confirmación DEBE ofrecer "Compartir por WhatsApp" con el texto de la historia 4.
-- **FR-009**: El texto compartido y el archivo de calendario NO DEBEN contener el enlace o token de cancelación ni datos personales del cliente (constitución V y VI).
+- **FR-007**: La confirmación DEBE ofrecer el botón "iPhone u Outlook" con un archivo de calendario estándar con título, inicio, fin, ubicación (si hay dirección) y descripción (barbero).
+- **FR-008**: La confirmación DEBE ofrecer "Añadir a Google Calendar" como acción principal y el archivo de FR-007 como segunda opción ("iPhone u Outlook"). (Cambio del usuario del 2026-10-14: sustituye a "Compartir por WhatsApp".)
+- **FR-009**: El enlace a Google Calendar y el archivo de calendario NO DEBEN contener el enlace o token de cancelación ni datos personales del cliente (constitución V y VI).
 - **FR-010**: Si la barbería tiene dirección, la confirmación DEBE ofrecer "Cómo llegar", con el mismo enlace al mapa que la portada.
 - **FR-011**: Nada de lo anterior DEBE cambiar las reglas de la reserva: validación en el servidor, tope por teléfono, honeypot y restricción de solapes.
 
@@ -121,7 +124,7 @@ En la pantalla "Cita confirmada", el cliente puede añadir la cita a su calendar
 - **SC-001**: Antes de dar sus datos, el cliente ve servicio, hora de inicio y de fin y precio en una sola vista, en el 100 % de las reservas por el calendario.
 - **SC-002**: Desde el paso 3 sin fecha, el cliente llega a las horas de la primera fecha disponible con un toque.
 - **SC-003**: El archivo de calendario se abre sin errores en Google Calendar y en el calendario del iPhone, con la hora correcta.
-- **SC-004**: Ningún texto compartido ni archivo de calendario contiene el enlace de cancelación ni datos personales (comprobado por tests).
+- **SC-004**: Ni el enlace a Google Calendar ni el archivo de calendario contienen el enlace de cancelación ni datos personales (comprobado por tests).
 - **SC-005**: 0 violaciones de accesibilidad automáticas en el flujo de reserva.
 
 ## Supuestos

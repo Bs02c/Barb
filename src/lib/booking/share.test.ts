@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildIcs, icsFileName, shareText, whatsappShareUrl, type BookingShare } from "./share";
+import { buildIcs, googleCalendarUrl, icsFileName, type BookingShare } from "./share";
 
-// Archivo de calendario y texto para WhatsApp de la confirmación (spec 007, historia 4, FR-007 a FR-009).
+// Enlace a Google Calendar y archivo de calendario de la confirmación (spec 007, historia 4, FR-007 y FR-009).
 const share: BookingShare = {
   serviceName: "Corte clásico",
   barberName: "Andrés",
@@ -10,8 +10,6 @@ const share: BookingShare = {
   startsAt: "2026-10-15T15:00:00.000Z",
   endsAt: "2026-10-15T15:30:00.000Z",
   localDate: "2026-10-15",
-  dateLabel: "jue, 15 de oct",
-  timeLabel: "10:00 a. m.",
 };
 const options = { uid: "cita-123@reservas", now: new Date("2026-10-14T20:00:00Z") };
 
@@ -57,21 +55,25 @@ describe("buildIcs", () => {
   });
 });
 
-describe("compartir", () => {
-  it("texto con servicio, barbería, fecha y hora", () => {
-    expect(shareText(share)).toBe("Reservé Corte clásico en La Barbería el jue, 15 de oct a las 10:00 a. m.");
+describe("googleCalendarUrl", () => {
+  it("abre Google Calendar con título, fechas UTC, dirección y barbero", () => {
+    const url = new URL(googleCalendarUrl(share));
+    expect(url.origin + url.pathname).toBe("https://calendar.google.com/calendar/render");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      action: "TEMPLATE",
+      text: "Corte clásico en La Barbería",
+      dates: "20261015T150000Z/20261015T153000Z",
+      details: "Barbero: Andrés",
+      location: "Calle 45 # 12-30, Bogotá",
+    });
   });
 
-  it("termina en un solo punto también con horas de 24 h", () => {
-    expect(shareText({ ...share, timeLabel: "10:00" })).toBe("Reservé Corte clásico en La Barbería el jue, 15 de oct a las 10:00.");
+  it("sin dirección no lleva location", () => {
+    expect(new URL(googleCalendarUrl({ ...share, address: null })).searchParams.has("location")).toBe(false);
   });
+});
 
-  it("enlace de WhatsApp con el texto codificado", () => {
-    const url = new URL(whatsappShareUrl(share));
-    expect(url.origin + url.pathname).toBe("https://wa.me/");
-    expect(url.searchParams.get("text")).toBe(shareText(share));
-  });
-
+describe("archivo", () => {
   it("nombre del archivo sin tildes ni espacios", () => {
     expect(icsFileName(share)).toBe("cita-la-barberia-2026-10-15.ics");
   });

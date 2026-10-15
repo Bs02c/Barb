@@ -94,11 +94,21 @@ test("«Primera fecha con horas» abre la primera fecha disponible", async ({ pa
   await expect(page.getByRole("link", { name: /^Primera fecha con horas:/ })).toHaveCount(0);
 });
 
-test("las fechas con pocas horas avisan en su nombre accesible", async ({ page }) => {
+// "Pocas horas" lo cubre calendar.test.ts (FEW_SLOTS): con el seed no hay forma fiable de provocarlo aquí
+// (revisión spec 007, MAINT-005).
+
+test("una hora inventada en la URL, aunque lleve datos=1, deja el paso 3 con el aviso y sin formulario", async ({ page }) => {
   await openStep3(page);
-  // Con el seed completo puede no haber ninguna; solo se comprueba el aviso si aparece.
-  const few = page.getByRole("navigation", { name: "Fechas" }).getByRole("link", { name: /quedan pocas horas/ });
-  if ((await few.count()) > 0) await expect(few.first()).toContainText("");
+  await page.getByRole("navigation", { name: "Fechas" }).getByRole("link").first().click();
+  await page.waitForURL(/dia=/);
+  const url = new URL(page.url());
+  url.searchParams.set("hora", "2030-01-01T03:07:00.000Z"); // no es un hueco (ni siquiera de 15 min)
+  url.searchParams.set("datos", "1");
+  await page.goto(url.toString());
+  await expect(page.getByRole("alert")).toContainText("Ese horario ya no está disponible");
+  await expect(page.getByRole("link", { name: "Continuar" })).toHaveCount(0);
+  await expect(page.getByLabel("Nombre")).toHaveCount(0);
+  await expect(page.getByText("Paso 3 de 4")).toBeVisible();
 });
 
 test.describe("reserva completa con barra y confirmación", () => {
@@ -112,7 +122,7 @@ test.describe("reserva completa con barra y confirmación", () => {
     );
   });
 
-  test("hora, barra, datos, confirmación con calendario, WhatsApp y mapa", async ({ page }) => {
+  test("hora, barra, datos, confirmación con Google Calendar, archivo .ics y mapa", async ({ page }) => {
     await openStep3(page);
     await page.getByRole("navigation", { name: "Fechas" }).getByRole("link").nth(1).click();
     await expect(page.getByRole("link", { name: "Continuar" })).toHaveCount(0); // sin hora no hay barra
@@ -135,16 +145,19 @@ test.describe("reserva completa con barra y confirmación", () => {
     await expect(page.getByRole("heading", { name: "Cita confirmada" })).toBeVisible();
 
     const downloadPromise = page.waitForEvent("download");
-    await page.getByRole("button", { name: "Añadir a mi calendario" }).click();
+    await page.getByRole("button", { name: /iPhone u Outlook/ }).click();
     const download = await downloadPromise;
     const ics = await readFile((await download.path()) ?? "", "utf8");
     expect(ics).toContain("BEGIN:VEVENT");
     expect(ics).not.toContain("/cancelar/");
 
-    const wa = page.getByRole("link", { name: /Compartir por WhatsApp/ });
-    expect(await wa.getAttribute("href")).toContain("https://wa.me/?text=");
-    expect(await wa.getAttribute("href")).not.toContain("cancelar");
-    await expect(wa).toHaveAttribute("rel", /noopener/);
+    const google = page.getByRole("link", { name: /Añadir a Google Calendar/ });
+    const href = (await google.getAttribute("href")) ?? "";
+    expect(href).toContain("https://calendar.google.com/calendar/render?action=TEMPLATE");
+    expect(href).not.toContain("cancelar");
+    expect(href).not.toContain(encodeURIComponent(email));
+    await expect(google).toHaveAttribute("rel", /noopener/);
+    await expect(page.getByRole("link", { name: /WhatsApp/ })).toHaveCount(0); // quitado a petición del usuario
     await expect(page.getByRole("link", { name: /Cómo llegar/ })).toHaveAttribute("target", "_blank");
     await expectNoAxeViolations(page);
   });

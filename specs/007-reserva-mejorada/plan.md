@@ -10,7 +10,7 @@ Cuatro mejoras de interfaz en la reserva pública, sin cambios en la base de dat
 3. **Aviso de pocas horas.** `CalendarDay` gana `few` (de 1 a 3 horas libres).
 4. **Confirmación.**
    - Archivo `.ics` generado en el navegador.
-   - Texto para WhatsApp (`https://wa.me/?text=`).
+   - Enlace a Google Calendar (`calendar.google.com/calendar/render?action=TEMPLATE`); el botón de WhatsApp se quitó por decisión del usuario (2026-10-14).
    - "Cómo llegar" con `mapsSearchUrl`.
    - Los datos llegan en un campo nuevo `share` del resultado de la reserva, así que `BookingSummary` (que también usan el correo y la cancelación) no cambia.
 
@@ -40,12 +40,12 @@ Hito de **reserva pública**: revisión de los tres agentes antes de fusionar.
   - `bookingCalendar(today, slotCounts: Map<string, number>)` añade `few: count >= 1 && count <= FEW_SLOTS (3)`;
   - `firstAvailableDay(calendar)` devuelve el primer día con `available`.
 - **`share.ts` (nuevo, puro, sin `server-only`):**
-  - tipo `BookingShare = { serviceName, barberName, barbershopName, address: string | null, startsAt, endsAt, dateLabel, timeLabel }`, con las fechas en ISO UTC;
-  - `buildIcs(share, uid)`: texto `.ics`;
-  - `whatsappShareUrl(share)`: `https://wa.me/?text=…` con "Reservé <servicio> en <barbería> el <fecha> a las <hora>.";
+  - tipo `BookingShare = { serviceName, barberName, barbershopName, address: string | null, startsAt, endsAt, localDate }`, con las fechas en ISO UTC;
+  - `buildIcs(share, { uid, now })`: texto `.ics` (escape RFC 5545; cualquier salto o control se neutraliza, SEC-001);
+  - `googleCalendarUrl(share)`: `calendar.google.com/calendar/render?action=TEMPLATE…` (sustituye al enlace de WhatsApp, quitado por el usuario el 2026-10-14);
   - `icsFileName(share)`.
 - **`book.ts`:** el resultado `ok` gana `share: BookingShare` (null con honeypot).
-- **`time.ts`:** `formatTimeRange(start, end, tz)` → "10:00 – 10:30 a. m."; la duración en minutos se suma en UTC.
+- **`time.ts`:** `formatTimeRange(start, end, tz)` → "10:00 a. m. – 10:30 a. m." (las dos horas completas: el "a" de Intl se confundía con "a. m."). El fin sale de `AvailableSlot.endsAt` (revisión, MAINT-001).
 
 ### Página y componentes (agente `frontend`)
 
@@ -56,8 +56,8 @@ Hito de **reserva pública**: revisión de los tres agentes antes de fusionar.
   - fechas con `few`: punto cobre y texto `sr-only`.
 - **Paso 4:** solo con `datos=1` (o con el atajo de "Lo más pronto"). Barra fija con el resumen y el botón de envío "Confirmar reserva". El enlace "volver" quita `datos`.
 - **Confirmación** (`booking-form.tsx`), con `share`:
-  - "Añadir a mi calendario": `Blob` + descarga, desde un botón;
-  - "Compartir por WhatsApp": enlace en una pestaña nueva;
+  - "iPhone u Outlook": `Blob` + descarga del `.ics`, desde un botón secundario;
+  - "Añadir a Google Calendar": enlace en una pestaña nueva (botón principal; el `.ics` pasa a "iPhone u Outlook");
   - "Cómo llegar", si hay dirección.
 - **DESIGN.md:** barra fija de la reserva y botones de la confirmación.
 
@@ -66,7 +66,7 @@ Hito de **reserva pública**: revisión de los tres agentes antes de fusionar.
 - **Unitarios:**
   - `few` y `firstAvailableDay`;
   - `buildIcs` (UTC, escape, CRLF, sin token);
-  - `whatsappShareUrl` (texto codificado, sin token ni datos del cliente);
+  - `googleCalendarUrl` (parámetros, fechas UTC, sin token ni datos del cliente);
   - `formatTimeRange`.
 - **Integración:** `bookAppointment` devuelve `share` sin token ni datos personales.
 - **E2E:**

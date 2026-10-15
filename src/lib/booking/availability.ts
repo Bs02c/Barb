@@ -42,6 +42,8 @@ export type AvailabilityInput = {
 export type AvailableSlot = {
   /** Inicio en ISO UTC: lo que viaja en la URL y en el formulario. */
   startsAt: string;
+  /** Fin en ISO UTC (inicio + duración): única fuente de la hora de fin para la barra y la cita (spec 007, MAINT-001). */
+  endsAt: string;
   /** Día local "YYYY-MM-DD" de la barbería. */
   localDate: string;
   /** "9:15 a. m." en hora local. */
@@ -162,6 +164,7 @@ export function computeAvailableSlots(input: AvailabilityInput): AvailableSlot[]
     .sort(([a], [b]) => a - b)
     .map(([t, entry]) => ({
       startsAt: new Date(t).toISOString(),
+      endsAt: new Date(t + duration).toISOString(),
       localDate: entry.localDate,
       label: labelFor(entry.localMinutes),
       barberId: entry.barberId,

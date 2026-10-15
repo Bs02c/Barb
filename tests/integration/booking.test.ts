@@ -288,7 +288,7 @@ describe("confirmación y token de cancelación (spec 003)", () => {
     });
   });
 
-  it("devuelve los datos públicos para calendario y WhatsApp, sin token ni datos del cliente (spec 007, FR-009)", async () => {
+  it("devuelve los datos públicos para los botones de calendario, sin token ni datos del cliente (spec 007, FR-009)", async () => {
     const startsAt = at("2030-01-17T11:00");
     const { result, confirmation } = await bookOutcome(
       shop,
@@ -305,8 +305,6 @@ describe("confirmación y token de cancelación (spec 003)", () => {
       startsAt,
       endsAt: new Date(new Date(startsAt).getTime() + 45 * 60_000).toISOString(),
       localDate: "2030-01-17",
-      dateLabel: expect.any(String),
-      timeLabel: expect.any(String),
     });
     const token = confirmation!.cancelUrl.split("/cancelar/")[1];
     const shared = JSON.stringify(share);

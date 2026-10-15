@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { startTransition, useActionState, useEffect, useId, useRef, type FormEvent, type ReactNode } from "react";
-import { CalendarPlus, CircleAlert, CircleCheck, MapPin, MessageCircle } from "lucide-react";
+import { CalendarPlus, CircleAlert, CircleCheck, Download, MapPin } from "lucide-react";
 import { BookingBar } from "@/components/booking/booking-bar";
 import { buttonVariants } from "@/components/ui/button";
 import { SubmitButton, TextField } from "@/components/forms/fields";
 import { createBooking } from "@/lib/booking/actions";
 import { initialBookingState, type BookingResult, type BookingSummary } from "@/lib/booking/booking-state";
 import { MESSAGES } from "@/lib/booking/messages";
-import { buildIcs, icsFileName, whatsappShareUrl, type BookingShare } from "@/lib/booking/share";
+import { buildIcs, googleCalendarUrl, icsFileName, type BookingShare } from "@/lib/booking/share";
 import { mapsSearchUrl } from "@/lib/storefront/hours";
 import { bookingSchema } from "@/lib/booking/schemas";
 import { cn } from "@/lib/utils";
@@ -226,7 +226,12 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Añadir al calendario (.ics generado aquí, sin enlace de cancelación), WhatsApp y mapa (spec 007, historia 4). */
+/**
+ * Calendario y cómo llegar (spec 007, historia 4). Google Calendar es la acción principal: abre "Nuevo
+ * evento" ya rellenado, mientras que el .ics en Android y el computador solo se descarga. El .ics queda
+ * para el iPhone (Safari lo abre directamente en Calendario) y Outlook. Nada lleva el enlace de cancelación.
+ * El botón de compartir por WhatsApp se quitó a petición del usuario (2026-10-14).
+ */
 function ShareActions({ share }: { share: BookingShare }) {
   function downloadIcs() {
     const ics = buildIcs(share, { uid: `${crypto.randomUUID()}@reservas`, now: new Date() });
@@ -237,31 +242,32 @@ function ShareActions({ share }: { share: BookingShare }) {
     document.body.append(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(url);
+    // Diferido: Safari (el público de "iPhone u Outlook") puede cancelar la descarga si se libera ya.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  // Añadir al calendario es la acción principal (evita olvidos: aún no hay recordatorios); compartir y
-  // cómo llegar, secundarias (DESIGN.md: un solo botón principal por pantalla).
-  const outline = buttonVariants({ variant: "outline", size: "lg", className: "w-full" });
+  // DESIGN.md: un solo botón principal por pantalla; el resto, secundarios.
+  const outline = (wide: boolean) =>
+    buttonVariants({ variant: "outline", size: "lg", className: wide ? "col-span-2 w-full" : "w-full" });
   return (
     <div className="grid grid-cols-2 gap-2">
-      <button type="button" onClick={downloadIcs} className={buttonVariants({ size: "lg", className: "col-span-2 w-full" })}>
-        <CalendarPlus aria-hidden="true" />
-        Añadir a mi calendario
-      </button>
       <a
-        href={whatsappShareUrl(share)}
+        href={googleCalendarUrl(share)}
         target="_blank"
         rel="noopener noreferrer"
-        className={share.address ? outline : buttonVariants({ variant: "outline", size: "lg", className: "col-span-2 w-full" })}
+        className={buttonVariants({ size: "lg", className: "col-span-2 w-full" })}
       >
-        <MessageCircle aria-hidden="true" />
-        <span className="sr-only">Compartir por </span>
-        WhatsApp
+        <CalendarPlus aria-hidden="true" />
+        Añadir a Google Calendar
         <span className="sr-only"> (se abre en otra pestaña)</span>
       </a>
+      <button type="button" onClick={downloadIcs} className={outline(!share.address)}>
+        <Download aria-hidden="true" />
+        <span className="sr-only">Añadir al calendario del </span>
+        iPhone u Outlook
+      </button>
       {share.address && (
-        <a href={mapsSearchUrl(share.address)} target="_blank" rel="noopener noreferrer" className={outline}>
+        <a href={mapsSearchUrl(share.address)} target="_blank" rel="noopener noreferrer" className={outline(false)}>
           <MapPin aria-hidden="true" />
           Cómo llegar
           <span className="sr-only"> (se abre en otra pestaña)</span>

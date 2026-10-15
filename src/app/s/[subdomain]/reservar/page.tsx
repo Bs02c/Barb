@@ -45,9 +45,9 @@ function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-/** Hora de fin (inicio + duración del servicio) como texto "10:00 a. m. – 10:30 a. m.". */
-function rangeLabel(startsAt: string, durationMinutes: number, timezone: string): string {
-  return formatTimeRange(startsAt, new Date(new Date(startsAt).getTime() + durationMinutes * 60_000), timezone);
+/** Datos de la barra fija para una hora (servicio, precio y "10:00 a. m. – 10:30 a. m."); fin del propio hueco. */
+function barProps(service: { name: string; priceLabel: string }, slot: { startsAt: string; endsAt: string }, timezone: string) {
+  return { title: service.name, price: service.priceLabel, detail: formatTimeRange(slot.startsAt, slot.endsAt, timezone) };
 }
 
 /** URL relativa del flujo con los parámetros dados (en el subdominio, /reservar). */
@@ -173,11 +173,7 @@ async function BookingStep({
         barberId={barberParam}
         startsAt={firstSlot.startsAt}
         slotsHref={calendarHref}
-        bar={{
-          title: service.name,
-          price: service.priceLabel,
-          detail: rangeLabel(firstSlot.startsAt, service.durationMinutes, barbershop.timezone),
-        }}
+        bar={barProps(service, firstSlot, barbershop.timezone)}
         header={
           <>
             <StepHeader step={3} total={3} title="Tus datos" backHref={barberStepHref} />
@@ -287,11 +283,7 @@ async function BookingStep({
               <p className="text-muted-foreground">Elige una fecha</p>
             )}
             {day && slot && (
-              <BookingBar
-                title={service.name}
-                price={service.priceLabel}
-                detail={rangeLabel(slot.startsAt, service.durationMinutes, barbershop.timezone)}
-              >
+              <BookingBar {...barProps(service, slot, barbershop.timezone)}>
                 <Link
                   href={bookingHref({ ...base, dia: day.localDate, franja: openPeriod?.id, hora: slot.startsAt, datos: "1" })}
                   className={buttonVariants({ size: "lg" })}
@@ -329,11 +321,7 @@ async function BookingStep({
       barberId={barberParam}
       startsAt={slot.startsAt}
       slotsHref={slotsHref}
-      bar={{
-        title: service.name,
-        price: service.priceLabel,
-        detail: rangeLabel(slot.startsAt, service.durationMinutes, barbershop.timezone),
-      }}
+      bar={barProps(service, slot, barbershop.timezone)}
       header={
         <>
           <StepHeader step={4} title="Tus datos" backHref={slotsHref} />

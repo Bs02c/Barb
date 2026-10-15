@@ -74,6 +74,8 @@ describe("serviceSchema", () => {
     expect(serviceSchema.safeParse({ ...base, name: "Corte\rURL:https://evil.example" }).success).toBe(false);
     expect(serviceSchema.safeParse({ ...base, name: "Corte\u0007" }).success).toBe(false);
     expect(serviceSchema.safeParse({ ...base, name: "Corte «clásico» ✂️" }).success).toBe(true);
+    // Emoji compuesto con zero width joiner (U+200D): se permite (revisión spec 007, nota de mantenibilidad).
+    expect(serviceSchema.safeParse({ ...base, name: `Corte pelirrojo ${String.fromCodePoint(0x1f468, 0x200d, 0x1f9b0)}` }).success).toBe(true);
   });
 
   it("rechaza nombre vacío", () => {
