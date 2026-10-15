@@ -14,11 +14,13 @@ export type CarouselDay = {
   month: string;
   isToday: boolean;
   available: boolean;
+  /** Quedan pocas horas (punto cobre). */
+  few?: boolean;
   /** Enlace para elegir esta fecha (solo se usa si hay horas). */
   href: string;
 };
 
-const card = "flex h-[4.5rem] w-14 shrink-0 snap-start flex-col items-center justify-center rounded-lg border-2";
+const card = "relative flex h-[4.5rem] w-14 shrink-0 snap-start flex-col items-center justify-center rounded-lg border-2";
 
 export function DateCarousel({ days, selected }: { days: CarouselDay[]; selected?: string }) {
   const listRef = useRef<HTMLUListElement>(null);
@@ -60,7 +62,7 @@ export function DateCarousel({ days, selected }: { days: CarouselDay[]; selected
               <Link
                 href={d.href}
                 scroll={false}
-                aria-label={d.isToday ? `Hoy, ${name}` : name}
+                aria-label={`${d.isToday ? `Hoy, ${name}` : name}${d.few ? ", quedan pocas horas" : ""}`}
                 aria-current={isSelected ? "date" : undefined}
                 className={cn(
                   card,
@@ -68,6 +70,7 @@ export function DateCarousel({ days, selected }: { days: CarouselDay[]; selected
                   isSelected ? "border-selection bg-muted" : "border-border bg-card hover:bg-muted",
                 )}
               >
+                {d.few && <span aria-hidden="true" className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-selection" />}
                 <span className="flex flex-col items-center leading-tight">
                   <span className="text-sm text-muted-foreground">{top}</span>
                   <span className="text-xl font-semibold">{d.day}</span>

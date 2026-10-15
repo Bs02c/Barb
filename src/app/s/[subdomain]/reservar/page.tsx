@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CircleAlert } from "lucide-react";
 import { DateCarousel } from "@/components/booking/date-carousel";
+import { BookingBar } from "@/components/booking/booking-bar";
 import { PeriodPicker } from "@/components/booking/period-picker";
 import { BookingForm } from "@/components/booking/booking-form";
+import { buttonVariants } from "@/components/ui/button";
 import {
   BookingSummary,
   ChoiceCard,
@@ -13,10 +16,11 @@ import {
   type SummaryItem,
 } from "@/components/booking/step-layout";
 import { getPublicBarbershop, type PublicBarbershop } from "@/lib/barbershops";
-import { groupByPeriod, pickPeriod } from "@/lib/booking/calendar";
+import { firstAvailableDay, groupByPeriod, pickPeriod } from "@/lib/booking/calendar";
 import { MESSAGES } from "@/lib/booking/messages";
 import { getAvailability, getBookingCatalog } from "@/lib/booking/queries";
 import { EARLIEST } from "@/lib/booking/schemas";
+import { formatTimeRange } from "@/lib/time";
 
 // Flujo de reserva pública (spec 002; research §6). Una sola página del servidor que decide el
 // paso por los parámetros de la URL: servicio → barbero → dia → hora. Elegir es seguir un enlace,
@@ -35,10 +39,15 @@ export async function generateMetadata(props: PageProps<"/s/[subdomain]/reservar
 const LOCAL_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 // `elegir=1`: con "Lo más pronto", mostrar el calendario en lugar de saltar a la primera hora libre.
-type Params = { servicio?: string; barbero?: string; dia?: string; hora?: string; franja?: string; elegir?: string };
+type Params = { servicio?: string; barbero?: string; dia?: string; hora?: string; franja?: string; datos?: string; elegir?: string };
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
+}
+
+/** Datos de la barra fija para una hora (servicio, precio y "10:00 a. m. – 10:30 a. m."); fin del propio hueco. */
+function barProps(service: { name: string; priceLabel: string }, slot: { startsAt: string; endsAt: string }, timezone: string) {
+  return { title: service.name, price: service.priceLabel, detail: formatTimeRange(slot.startsAt, slot.endsAt, timezone) };
 }
 
 /** URL relativa del flujo con los parámetros dados (en el subdominio, /reservar). */
@@ -70,6 +79,7 @@ export default async function BookingPage(props: PageProps<"/s/[subdomain]/reser
           dia: first(query.dia),
           hora: first(query.hora),
           franja: first(query.franja),
+          datos: first(query.datos),
           elegir: first(query.elegir),
         }}
       />
@@ -163,6 +173,7 @@ async function BookingStep({
         barberId={barberParam}
         startsAt={firstSlot.startsAt}
         slotsHref={calendarHref}
+        bar={barProps(service, firstSlot, barbershop.timezone)}
         header={
           <>
             <StepHeader step={3} total={3} title="Tus datos" backHref={barberStepHref} />
@@ -201,9 +212,12 @@ async function BookingStep({
   const slots = day ? (slotsByDay.get(day.localDate) ?? []) : [];
   const slot = slots.find((s) => s.startsAt === params.hora);
   const periods = groupByPeriod(slots, barbershop.timezone);
-  const openPeriod = pickPeriod(periods, params.franja);
+  const slotPeriod = slot ? periods.find((p) => p.slots.includes(slot)) : undefined;
+  const openPeriod = pickPeriod(periods, params.franja ?? slotPeriod?.id);
+  const firstDay = firstAvailableDay(calendar);
 
-  if (!day || !slot) {
+  // Paso 3 hasta que haya una hora válida y el cliente pulse "Continuar" (datos=1).
+  if (!day || !slot || params.datos !== "1") {
     return (
       <>
         <StepHeader step={3} title="Elige fecha y hora" backHref={barberStepHref} />
@@ -215,6 +229,21 @@ async function BookingStep({
           />
         ) : (
           <>
+            {params.hora && !slot && (
+              <p role="alert" className="flex items-start gap-1.5 text-sm font-medium text-destructive-text">
+                <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                <span>{MESSAGES.slotTaken}</span>
+              </p>
+            )}
+            {!day && firstDay && (
+              <Link
+                href={bookingHref({ ...base, dia: firstDay.localDate })}
+                className={buttonVariants({ variant: "outline", className: "h-11 w-full" })}
+              >
+                Primera fecha con horas:{" "}
+                {firstDay.isToday ? "hoy" : `${firstDay.weekday} ${firstDay.day} ${firstDay.month}`}
+              </Link>
+            )}
             <DateCarousel
               days={calendar.map((c) => ({ ...c, href: bookingHref({ ...base, dia: c.localDate }) }))}
               selected={day?.localDate}
@@ -238,7 +267,10 @@ async function BookingStep({
                     <ul className="flex flex-wrap gap-2">
                       {openPeriod.slots.map((s) => (
                         <li key={s.startsAt}>
-                          <Chip href={bookingHref({ ...base, dia: day.localDate, franja: openPeriod.id, hora: s.startsAt })}>
+                          <Chip
+                            href={bookingHref({ ...base, dia: day.localDate, franja: openPeriod.id, hora: s.startsAt })}
+                            selected={s.startsAt === slot?.startsAt}
+                          >
                             {s.label}
                           </Chip>
                         </li>
@@ -249,6 +281,16 @@ async function BookingStep({
               </>
             ) : (
               <p className="text-muted-foreground">Elige una fecha</p>
+            )}
+            {day && slot && (
+              <BookingBar {...barProps(service, slot, barbershop.timezone)}>
+                <Link
+                  href={bookingHref({ ...base, dia: day.localDate, franja: openPeriod?.id, hora: slot.startsAt, datos: "1" })}
+                  className={buttonVariants({ size: "lg" })}
+                >
+                  Continuar
+                </Link>
+              </BookingBar>
             )}
           </>
         )}
@@ -262,7 +304,8 @@ async function BookingStep({
     servicio: service.id,
     barbero: barberParam,
     dia: day.localDate,
-    franja: periods.find((p) => p.slots.includes(slot))?.id,
+    franja: slotPeriod?.id,
+    hora: slot.startsAt,
   });
   const finalSummary: SummaryItem[] = [
     summary[0],
@@ -278,6 +321,7 @@ async function BookingStep({
       barberId={barberParam}
       startsAt={slot.startsAt}
       slotsHref={slotsHref}
+      bar={barProps(service, slot, barbershop.timezone)}
       header={
         <>
           <StepHeader step={4} title="Tus datos" backHref={slotsHref} />

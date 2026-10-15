@@ -21,7 +21,7 @@ export async function submitBooking(
   now: Date = new Date(),
 ): Promise<BookingOutcome> {
   // Honeypot (FR-012): un bot lo rellena; se responde como si todo fuera bien, sin escribir nada.
-  if (String(formData.get("website") ?? "").trim() !== "") return { result: { ok: true, summary: null } };
+  if (String(formData.get("website") ?? "").trim() !== "") return { result: { ok: true, summary: null, share: null } };
 
   const tenant = resolveTenant(host, ROOT_DOMAIN);
   if (tenant.kind !== "tenant" || tenant.subdomain !== claimedSubdomain) {

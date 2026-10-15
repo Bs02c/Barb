@@ -226,7 +226,7 @@ describe("submitBooking (envío del formulario)", () => {
 
   it("honeypot relleno: responde éxito sin crear la cita (FR-012)", async () => {
     const result = await submitResult(host(), shop.subdomain, form({ ...valid(), website: "http://spam.example" }), NOW);
-    expect(result).toEqual({ ok: true, summary: null });
+    expect(result).toEqual({ ok: true, summary: null, share: null });
     expect(await activeCount(andres, at("2030-01-15T09:00"))).toBe(0);
   });
 
@@ -286,6 +286,31 @@ describe("confirmación y token de cancelación (spec 003)", () => {
       barbershopName: shop.name,
       summary: { serviceName: "Corte", barberName: "Andrés" },
     });
+  });
+
+  it("devuelve los datos públicos para los botones de calendario, sin token ni datos del cliente (spec 007, FR-009)", async () => {
+    const startsAt = at("2030-01-17T11:00");
+    const { result, confirmation } = await bookOutcome(
+      shop,
+      input({ starts_at: startsAt, customer_name: "Nombre Secreto", customer_email: "secreto@example.com" }),
+      NOW,
+    );
+    expect(result.ok).toBe(true);
+    const share = result.ok ? result.share : null;
+    expect(share).toEqual({
+      serviceName: "Corte",
+      barberName: "Andrés",
+      barbershopName: shop.name,
+      address: null,
+      startsAt,
+      endsAt: new Date(new Date(startsAt).getTime() + 45 * 60_000).toISOString(),
+      localDate: "2030-01-17",
+    });
+    const token = confirmation!.cancelUrl.split("/cancelar/")[1];
+    const shared = JSON.stringify(share);
+    for (const secret of [token, "cancelar", "Nombre Secreto", "secreto@example.com", "+57300"]) {
+      expect(shared).not.toContain(secret);
+    }
   });
 
   it("una reserva rechazada no genera correo", async () => {

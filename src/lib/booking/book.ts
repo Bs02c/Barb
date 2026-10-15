@@ -11,6 +11,7 @@ import type { BookingResult } from "./booking-state";
 import { MESSAGES } from "./messages";
 import { loadSlots, resolveSelection } from "./queries";
 import { EARLIEST, type BookingInput } from "./schemas";
+import type { BookingShare } from "./share";
 
 // Reserva de una cita desde la web pública (spec 002, research §4).
 // Separado de la server action para poder probarlo en tests de integración.
@@ -66,7 +67,7 @@ async function attempt(barbershop: PublicBarbershop, input: BookingInput, now: D
   // 4. Insertar con copia de duración y precio y fecha de consentimiento (FR-011).
   const { service } = selection;
   const startsAt = new Date(slot.startsAt);
-  const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
+  const endsAt = new Date(slot.endsAt); // la misma hora de fin que vio el cliente en la barra
   // Token de cancelación nuevo en cada intento; en la base solo su hash (spec 003, FR-003).
   const token = generateCancelToken();
   try {
@@ -98,8 +99,19 @@ async function attempt(barbershop: PublicBarbershop, input: BookingInput, now: D
     durationMinutes: service.durationMinutes,
     priceLabel: formatPrice(service.price),
   };
+  // Datos públicos para los botones de calendario de la confirmación (spec 007). Sin token ni datos
+  // del cliente: el navegador los recibe tal cual (FR-009). localDate es el día local de la hora pedida.
+  const share: BookingShare = {
+    serviceName: service.name,
+    barberName,
+    barbershopName: barbershop.name,
+    address: barbershop.address,
+    startsAt: startsAt.toISOString(),
+    endsAt: endsAt.toISOString(),
+    localDate,
+  };
   return {
-    result: { ok: true, summary },
+    result: { ok: true, summary, share },
     confirmation: {
       to: input.customer_email,
       barbershopName: barbershop.name,

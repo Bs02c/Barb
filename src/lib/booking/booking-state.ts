@@ -1,6 +1,8 @@
 // Resultado de createBooking (src/lib/booking/actions.ts). Archivo aparte porque un módulo
 // "use server" solo puede exportar funciones async.
 
+import type { BookingShare } from "./share";
+
 export type BookingSummary = {
   serviceName: string;
   barberName: string;
@@ -17,6 +19,8 @@ export type BookingResult =
       ok: true;
       /** null cuando el envío se descartó en silencio (honeypot): mostrar una confirmación genérica. */
       summary: BookingSummary | null;
+      /** Google Calendar, archivo .ics y "Cómo llegar" de la confirmación (spec 007); null con honeypot. */
+      share: BookingShare | null;
     }
   | {
       ok: false;

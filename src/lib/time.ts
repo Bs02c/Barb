@@ -100,6 +100,15 @@ export function formatTime(instant: Date | string, timeZone: string): string {
   return dateFormatter(LOCALE, { timeZone, hour: "numeric", minute: "2-digit" }).format(date);
 }
 
+/**
+ * Inicio y fin de una cita en la hora local de la barbería: "10:00 a. m. – 10:30 a. m." (barra de la
+ * reserva, spec 007). Con guion y las dos horas completas: el "a" de Intl.formatRange ("10:00 a 10:30")
+ * se confunde con "a. m.".
+ */
+export function formatTimeRange(start: Date | string, end: Date | string, timeZone: string): string {
+  return `${formatTime(start, timeZone)} – ${formatTime(end, timeZone)}`;
+}
+
 /** Fecha local "2026-10-14" → "mar, 14 de oct" (sin zona: ya es una fecha local). */
 export function formatLocalDate(localDate: string): string {
   return dateFormatter(LOCALE, { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" }).format(

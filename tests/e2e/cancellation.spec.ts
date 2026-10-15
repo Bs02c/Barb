@@ -55,7 +55,7 @@ test("un cliente cancela su cita desde el enlace del correo", async ({ page }) =
   await page.getByLabel("Número de contacto").fill(phone);
   await page.getByLabel("Correo").fill(email);
   await page.getByRole("checkbox", { name: /Autorizo el tratamiento/ }).check();
-  await page.getByRole("button", { name: "Reservar cita" }).click();
+  await page.getByRole("button", { name: "Confirmar reserva" }).click();
   await expect(page.getByRole("heading", { name: "Cita confirmada" })).toBeVisible();
 
   // 2. El correo se escribe tras la respuesta: esperar hasta 10 s.

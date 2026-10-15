@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HORIZON_DAYS } from "./availability";
-import { bookingCalendar, groupByPeriod, pickPeriod } from "./calendar";
+import { bookingCalendar, firstAvailableDay, groupByPeriod, pickPeriod } from "./calendar";
 
 // Paso 3 de la reserva: carrusel de fechas y franjas. Bogotá es UTC-5: 14:00 UTC = 9:00 locales.
 const BOGOTA = "America/Bogota";
@@ -8,17 +8,37 @@ const slot = (iso: string) => ({ startsAt: iso });
 
 describe("bookingCalendar", () => {
   it("devuelve los días del horizonte desde hoy, con los sin horas marcados como no disponibles", () => {
-    const days = bookingCalendar("2026-10-15", new Set(["2026-10-15", "2026-10-17"]));
+    const days = bookingCalendar("2026-10-15", new Map([["2026-10-15", 8], ["2026-10-17", 2]]));
     expect(days).toHaveLength(HORIZON_DAYS);
-    expect(days[0]).toEqual({ localDate: "2026-10-15", weekday: "jue", day: "15", month: "oct", isToday: true, available: true });
+    expect(days[0]).toEqual({
+      localDate: "2026-10-15",
+      weekday: "jue",
+      day: "15",
+      month: "oct",
+      isToday: true,
+      available: true,
+      few: false,
+    });
     expect(days[1]).toMatchObject({ localDate: "2026-10-16", weekday: "vie", isToday: false, available: false });
-    expect(days[2].available).toBe(true);
+    expect(days[2]).toMatchObject({ available: true, few: true });
     expect(days.at(-1)?.localDate).toBe("2026-11-13");
   });
 
   it("cruza el cambio de mes", () => {
-    const days = bookingCalendar("2026-10-30", new Set());
+    const days = bookingCalendar("2026-10-30", new Map());
     expect(days.slice(0, 3).map((d) => `${d.day} ${d.month}`)).toEqual(["30 oct", "31 oct", "1 nov"]);
+  });
+});
+
+describe("pocas horas y primera fecha (spec 007)", () => {
+  it("avisa con 1 a 3 horas, no con 0 ni con 4", () => {
+    const days = bookingCalendar("2026-10-15", new Map([["2026-10-15", 1], ["2026-10-16", 3], ["2026-10-17", 4]]));
+    expect(days.slice(0, 4).map((d) => d.few)).toEqual([true, true, false, false]);
+  });
+
+  it("la primera fecha con horas, o ninguna", () => {
+    expect(firstAvailableDay(bookingCalendar("2026-10-15", new Map([["2026-10-20", 5]])))?.localDate).toBe("2026-10-20");
+    expect(firstAvailableDay(bookingCalendar("2026-10-15", new Map()))).toBeUndefined();
   });
 });
 

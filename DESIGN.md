@@ -113,6 +113,9 @@ Reglas:
   - Seleccionado: fondo `accent`, texto `on-accent`.
   - No disponible: fondo `unavailable`, texto `unavailable-foreground` tachado, no clicable.
 - **Indicador de pasos** (reserva): "Paso 2 de 4" en texto + barra de progreso en `accent`. Sin colores distintos por paso.
+- **Barra de la reserva** (pasos 3 y 4, spec 007): fija abajo, fondo `card`, borde superior `border`, relleno 12 × 16 px y área segura del celular. A la izquierda el resumen en dos líneas: servicio (recortado con puntos suspensivos) y precio, que nunca se recorta, en la primera; "10:00 a. m. – 10:30 a. m." en `muted-foreground` en la segunda. A la derecha el botón principal (paso 3: "Continuar"; paso 4: "Confirmar reserva"). Aparece en el paso 3 solo con una hora elegida; la página reserva 96 px al final para que no tape nada.
+- **Fecha con pocas horas:** punto cobre (`selection`, 6 px) en la esquina de la tarjeta de fecha; el aviso también va en el nombre accesible ("quedan pocas horas").
+- **Botones de la confirmación** (cambio del usuario, 2026-10-14): "Añadir a Google Calendar" como botón principal, a todo el ancho (abre Google Calendar con la cita rellenada). Debajo, en dos columnas, dos secundarios con borde `input`: "iPhone u Outlook" (descarga el archivo `.ics`, que el iPhone abre en Calendario) y "Cómo llegar" (solo con dirección; si no hay, el del iPhone ocupa todo el ancho). Iconos Lucide. Sin botón de compartir por WhatsApp.
 - **Estados de envío:** botón con "Reservando…" y deshabilitado mientras se envía; después, pantalla de confirmación clara o error en línea.
 - **Iconos:** Lucide (ya instalado), 20 px, trazo 1,75. Nunca emojis como iconos.
 
