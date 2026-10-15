@@ -12,17 +12,34 @@ export type CalendarDay = {
   isToday: boolean;
   /** Tiene al menos una hora libre: si no, la tarjeta sale en gris y no se puede elegir. */
   available: boolean;
+  /** Quedan pocas horas (1 a FEW_SLOTS): punto cobre y "quedan pocas horas" (spec 007, historia 3). */
+  few: boolean;
 };
+
+/** Con esta cantidad de horas libres o menos, la fecha avisa de que quedan pocas (spec 007). */
+export const FEW_SLOTS = 3;
 
 /**
  * Los días del horizonte de reserva (hoy y los 29 siguientes), con su disponibilidad. Muestra también
  * los días sin horas, en gris, para que el cliente vea el calendario completo.
  */
-export function bookingCalendar(today: string, availableDates: ReadonlySet<string>): CalendarDay[] {
+export function bookingCalendar(today: string, slotCounts: ReadonlyMap<string, number>): CalendarDay[] {
   return Array.from({ length: HORIZON_DAYS }, (_, i) => {
     const localDate = addDaysToLocalDate(today, i);
-    return { localDate, ...localDateParts(localDate), isToday: i === 0, available: availableDates.has(localDate) };
+    const count = slotCounts.get(localDate) ?? 0;
+    return {
+      localDate,
+      ...localDateParts(localDate),
+      isToday: i === 0,
+      available: count > 0,
+      few: count > 0 && count <= FEW_SLOTS,
+    };
   });
+}
+
+/** Primera fecha con horas, para el botón "Primera fecha con horas" (spec 007, historia 2). */
+export function firstAvailableDay(calendar: CalendarDay[]): CalendarDay | undefined {
+  return calendar.find((day) => day.available);
 }
 
 export type PeriodId = "manana" | "tarde" | "noche";

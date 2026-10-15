@@ -3,11 +3,15 @@ import { z } from "zod";
 // Esquemas compartidos por los formularios (cliente) y las server actions (servidor).
 // Mismas reglas que los check de la base de datos (db/migrations), con mensajes en español.
 
+// Los nombres de barberos y servicios salen en la portada, el correo y el archivo de calendario: una sola
+// línea y sin caracteres invisibles, igual que los textos de la portada (revisión spec 007, SEC-001).
 const name = z
   .string()
   .trim()
   .min(1, "Escribe un nombre.")
-  .max(100, "Máximo 100 caracteres.");
+  .max(100, "Máximo 100 caracteres.")
+  .refine((v) => !LINE_BREAK.test(v), "Escríbelo en una sola línea.")
+  .refine((v) => LINE_BREAK.test(v) || !INVISIBLE.test(v), "Quita los caracteres especiales invisibles.");
 
 const uuid = z.uuid("Identificador inválido.");
 

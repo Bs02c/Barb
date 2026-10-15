@@ -2,11 +2,15 @@
 
 import Link from "next/link";
 import { startTransition, useActionState, useEffect, useId, useRef, type FormEvent, type ReactNode } from "react";
-import { CircleAlert, CircleCheck } from "lucide-react";
+import { CalendarPlus, CircleAlert, CircleCheck, MapPin, MessageCircle } from "lucide-react";
+import { BookingBar } from "@/components/booking/booking-bar";
+import { buttonVariants } from "@/components/ui/button";
 import { SubmitButton, TextField } from "@/components/forms/fields";
 import { createBooking } from "@/lib/booking/actions";
 import { initialBookingState, type BookingResult, type BookingSummary } from "@/lib/booking/booking-state";
 import { MESSAGES } from "@/lib/booking/messages";
+import { buildIcs, icsFileName, whatsappShareUrl, type BookingShare } from "@/lib/booking/share";
+import { mapsSearchUrl } from "@/lib/storefront/hours";
 import { bookingSchema } from "@/lib/booking/schemas";
 import { cn } from "@/lib/utils";
 import { toFieldErrors } from "@/lib/validation";
@@ -26,6 +30,8 @@ type Props = {
   slotsHref: string;
   /** Cabecera del paso (progreso, "Atrás" y resumen); se oculta al confirmar. */
   header: ReactNode;
+  /** Resumen de la barra fija inferior, donde vive el botón de envío (spec 007). */
+  bar: { title: string; price: string; detail: string };
 };
 
 // Mismo formato que devuelve el servidor, para mostrar los errores igual.
@@ -35,7 +41,7 @@ function clientErrors(formData: FormData): BookingResult | null {
   return { ok: false, code: "invalid", message: MESSAGES.invalid, fieldErrors: toFieldErrors(parsed.error) };
 }
 
-export function BookingForm({ subdomain, serviceId, barberId, startsAt, slotsHref, header }: Props) {
+export function BookingForm({ subdomain, serviceId, barberId, startsAt, slotsHref, header, bar }: Props) {
   const [state, dispatch, pending] = useActionState(
     async (prev: BookingResult | null, formData: FormData) =>
       clientErrors(formData) ?? (await createBooking(subdomain, prev, formData)),
@@ -48,7 +54,7 @@ export function BookingForm({ subdomain, serviceId, barberId, startsAt, slotsHre
     startTransition(() => dispatch(formData));
   }
 
-  if (state?.ok) return <Confirmation summary={state.summary} />;
+  if (state?.ok) return <Confirmation summary={state.summary} share={state.share} />;
 
   const fieldErrors = state && !state.ok ? state.fieldErrors : undefined;
 
@@ -98,9 +104,11 @@ export function BookingForm({ subdomain, serviceId, barberId, startsAt, slotsHre
 
         <ResultMessage state={state} slotsHref={slotsHref} />
 
-        <SubmitButton pending={pending} pendingLabel="Reservando…" size="lg" className="w-full">
-          Reservar cita
-        </SubmitButton>
+        <BookingBar title={bar.title} price={bar.price} detail={bar.detail}>
+          <SubmitButton pending={pending} pendingLabel="Reservando…" size="lg">
+            Confirmar reserva
+          </SubmitButton>
+        </BookingBar>
       </form>
     </>
   );
@@ -173,7 +181,7 @@ function ResultMessage({ state, slotsHref }: { state: BookingResult | null; slot
 }
 
 /** Pantalla final. Con summary null (envío descartado en silencio) se muestra un texto genérico. */
-function Confirmation({ summary }: { summary: BookingSummary | null }) {
+function Confirmation({ summary, share }: { summary: BookingSummary | null; share: BookingShare | null }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   // Lleva el foco al título para que el lector de pantalla anuncie el resultado.
   useEffect(() => headingRef.current?.focus(), []);
@@ -195,6 +203,7 @@ function Confirmation({ summary }: { summary: BookingSummary | null }) {
           <SummaryRow label="Precio" value={summary.priceLabel} />
         </dl>
       )}
+      {summary && share && <ShareActions share={share} />}
       <Link
         href="/"
         className={cn(
@@ -213,6 +222,51 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
     <div className="contents">
       <dt className="text-muted-foreground">{label}</dt>
       <dd className="font-medium">{value}</dd>
+    </div>
+  );
+}
+
+/** Añadir al calendario (.ics generado aquí, sin enlace de cancelación), WhatsApp y mapa (spec 007, historia 4). */
+function ShareActions({ share }: { share: BookingShare }) {
+  function downloadIcs() {
+    const ics = buildIcs(share, { uid: `${crypto.randomUUID()}@reservas`, now: new Date() });
+    const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = icsFileName(share);
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // Añadir al calendario es la acción principal (evita olvidos: aún no hay recordatorios); compartir y
+  // cómo llegar, secundarias (DESIGN.md: un solo botón principal por pantalla).
+  const outline = buttonVariants({ variant: "outline", size: "lg", className: "w-full" });
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <button type="button" onClick={downloadIcs} className={buttonVariants({ size: "lg", className: "col-span-2 w-full" })}>
+        <CalendarPlus aria-hidden="true" />
+        Añadir a mi calendario
+      </button>
+      <a
+        href={whatsappShareUrl(share)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={share.address ? outline : buttonVariants({ variant: "outline", size: "lg", className: "col-span-2 w-full" })}
+      >
+        <MessageCircle aria-hidden="true" />
+        <span className="sr-only">Compartir por </span>
+        WhatsApp
+        <span className="sr-only"> (se abre en otra pestaña)</span>
+      </a>
+      {share.address && (
+        <a href={mapsSearchUrl(share.address)} target="_blank" rel="noopener noreferrer" className={outline}>
+          <MapPin aria-hidden="true" />
+          Cómo llegar
+          <span className="sr-only"> (se abre en otra pestaña)</span>
+        </a>
+      )}
     </div>
   );
 }

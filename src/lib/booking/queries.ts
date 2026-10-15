@@ -198,7 +198,8 @@ export const getAvailability = cache(
     }
     const days = [...slotsByDay.keys()].map((localDate) => ({ localDate, label: formatLocalDate(localDate) }));
     // Carrusel del paso 3: los 30 días del horizonte, con los que no tienen horas en gris.
-    const calendar = bookingCalendar(toLocalDate(now, barbershop.timezone), new Set(slotsByDay.keys()));
+    const slotCounts = new Map([...slotsByDay].map(([date, slots]) => [date, slots.length]));
+    const calendar = bookingCalendar(toLocalDate(now, barbershop.timezone), slotCounts);
     return { days, slotsByDay, calendar };
   },
 );

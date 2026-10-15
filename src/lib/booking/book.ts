@@ -6,11 +6,12 @@ import { withService } from "@/lib/db/client";
 import { toDbError } from "@/lib/db/errors";
 import { appointments } from "@/lib/db/schema";
 import type { ConfirmationData } from "@/lib/email/confirmation";
-import { formatDateTime, formatPrice, toLocalDate } from "@/lib/time";
+import { formatDateTime, formatLocalDate, formatPrice, formatTime, toLocalDate } from "@/lib/time";
 import type { BookingResult } from "./booking-state";
 import { MESSAGES } from "./messages";
 import { loadSlots, resolveSelection } from "./queries";
 import { EARLIEST, type BookingInput } from "./schemas";
+import type { BookingShare } from "./share";
 
 // Reserva de una cita desde la web pública (spec 002, research §4).
 // Separado de la server action para poder probarlo en tests de integración.
@@ -98,8 +99,21 @@ async function attempt(barbershop: PublicBarbershop, input: BookingInput, now: D
     durationMinutes: service.durationMinutes,
     priceLabel: formatPrice(service.price),
   };
+  // Datos públicos para el calendario y WhatsApp de la confirmación (spec 007). Sin token ni datos
+  // del cliente: el navegador los recibe tal cual (FR-009). localDate es el día local de la hora pedida.
+  const share: BookingShare = {
+    serviceName: service.name,
+    barberName,
+    barbershopName: barbershop.name,
+    address: barbershop.address,
+    startsAt: startsAt.toISOString(),
+    endsAt: endsAt.toISOString(),
+    localDate,
+    dateLabel: formatLocalDate(localDate),
+    timeLabel: formatTime(startsAt, barbershop.timezone),
+  };
   return {
-    result: { ok: true, summary },
+    result: { ok: true, summary, share },
     confirmation: {
       to: input.customer_email,
       barbershopName: barbershop.name,

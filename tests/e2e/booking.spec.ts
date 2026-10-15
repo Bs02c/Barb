@@ -67,7 +67,7 @@ test("un cliente reserva una cita con «Lo más pronto» desde el celular", asyn
   await page.getByLabel("Número de contacto").fill(phone);
   await page.getByLabel("Correo").fill(email);
   await page.getByRole("checkbox", { name: /Autorizo el tratamiento/ }).check();
-  await page.getByRole("button", { name: "Reservar cita" }).click();
+  await page.getByRole("button", { name: "Confirmar reserva" }).click();
 
   // Confirmación.
   await expect(page.getByRole("heading", { name: "Cita confirmada" })).toBeVisible();

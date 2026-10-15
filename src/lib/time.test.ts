@@ -4,6 +4,7 @@ import {
   formatDuration,
   formatPrice,
   formatTimeOfDay,
+  formatTimeRange,
   localDateTimeToUtc,
   toLocalTimeOfDay,
   utcToLocalDateTime,
@@ -44,6 +45,11 @@ describe("formatos en español de Colombia", () => {
 
   it("duración de un servicio en horas y minutos (spec 006)", () => {
     expect([20, 60, 75, 480].map(formatDuration)).toEqual(["20 min", "1 h", "1 h 15 min", "8 h"]);
+  });
+
+  it("rango de una cita con las dos horas completas (spec 007)", () => {
+    const range = formatTimeRange("2026-10-15T16:45:00Z", "2026-10-15T17:30:00Z", "America/Bogota");
+    expect(range.replace(/\s/g, " ")).toBe("11:45 a. m. – 12:30 p. m.");
   });
 
   it("hora local HH:MM de un instante, en la zona de la barbería (spec 006)", () => {

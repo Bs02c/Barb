@@ -69,6 +69,13 @@ describe("serviceSchema", () => {
     expect(serviceSchema.safeParse({ name: "Corte", duration_minutes: "30", price: "1.5" }).success).toBe(false);
   });
 
+  it("rechaza nombres con saltos de línea o caracteres de control (revisión spec 007, SEC-001)", () => {
+    const base = { duration_minutes: "30", price: "1" };
+    expect(serviceSchema.safeParse({ ...base, name: "Corte\rURL:https://evil.example" }).success).toBe(false);
+    expect(serviceSchema.safeParse({ ...base, name: "Corte\u0007" }).success).toBe(false);
+    expect(serviceSchema.safeParse({ ...base, name: "Corte «clásico» ✂️" }).success).toBe(true);
+  });
+
   it("rechaza nombre vacío", () => {
     expect(serviceSchema.safeParse({ name: "  ", duration_minutes: "30", price: "1" }).success).toBe(false);
   });
